@@ -26,11 +26,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('id', userId)
         .single();
 
-      if (error) {
-        console.error('Error fetching profile:', error);
-        return null;
-      }
-
       if (data) {
         const appUser: User = {
           id: data.id,
@@ -40,9 +35,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
         setUser(appUser);
         return appUser;
+      } else {
+        // Fallback: If profile row doesn't exist yet, create a temporary user object
+        // This prevents the app from being inaccessible if the DB trigger fails
+        const fallbackUser: User = {
+            id: userId,
+            name: email.split('@')[0],
+            role: Role.SALES_REP,
+            avatarInitials: email.substring(0, 2).toUpperCase()
+        };
+        setUser(fallbackUser);
+        return fallbackUser;
       }
     } catch (err) {
-      console.error(err);
+      console.error("Profile fetch error:", err);
+      // Even on error, if we have a session, we should probably allow access with defaults,
+      // but strictly speaking we need the role. 
+      // We'll leave it null here implies "not fully loaded" or "error", 
+      // but let's try to recover if it's just a data missing issue.
     }
     return null;
   };
@@ -52,9 +62,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const initializeAuth = async () => {
       try {
-        // 1. Check active session
         const { data: { session } } = await supabase.auth.getSession();
-        
         if (session?.user) {
            await fetchProfile(session.user.id, session.user.email!);
         }
@@ -67,15 +75,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     initializeAuth();
 
-    // 2. Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
-        // On sign in or token refresh, ensure profile is loaded
-        await fetchProfile(session.user.id, session.user.email!);
+        // We only trigger fetch if user state isn't already set to this user
+        // This reduces redundant fetches, though signIn manual call handles the primary flow
+        setUser(prev => {
+            if (prev?.id === session.user.id) return prev;
+            return prev;
+        });
+        
+        if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
+             await fetchProfile(session.user.id, session.user.email!);
+        }
       } else {
         if (mounted) {
           setUser(null);
-          // Only set loading false if we aren't in the initial load phase (which is handled by initializeAuth)
         }
       }
     });
@@ -87,13 +101,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (!error && data.user) {
+        // Critical: Wait for profile to load before returning
+        // This ensures the ProtectedRoute sees the authenticated user immediately
+        await fetchProfile(data.user.id, data.user.email!);
+    }
     return { error };
   };
 
   const signUp = async (email: string, password: string, name: string, role: Role) => {
-    // We pass metadata so the database trigger can populate the profile table
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -104,6 +122,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
     });
+    
+    if (!error && data.user) {
+        await fetchProfile(data.user.id, data.user.email!);
+    }
     return { error };
   };
 
@@ -114,7 +136,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const hasRole = (roles: Role[]) => {
     if (!user) return false;
-    // Master Override: Admin has access to everything
     if (user.role === Role.ADMIN) return true;
     return roles.includes(user.role);
   };

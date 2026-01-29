@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Role } from '../types';
@@ -12,6 +12,7 @@ export const Login: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const isMounted = useRef(true);
   
   const [formData, setFormData] = useState({
     email: '',
@@ -19,6 +20,10 @@ export const Login: React.FC = () => {
     name: '',
     role: Role.SALES_REP
   });
+
+  useEffect(() => {
+    return () => { isMounted.current = false; };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,19 +39,22 @@ export const Login: React.FC = () => {
       }
 
       if (result.error) {
-        setError(result.error.message);
+        if (isMounted.current) setError(result.error.message);
       } else {
         if (!isLogin) {
-          alert("Account created! Please sign in.");
-          setIsLogin(true);
+          if (isMounted.current) {
+             alert("Account created! Please sign in.");
+             setIsLogin(true);
+          }
         } else {
+          // Navigation happens here. The component will unmount.
           navigate('/');
         }
       }
     } catch (err) {
-      setError('An unexpected error occurred');
+      if (isMounted.current) setError('An unexpected error occurred');
     } finally {
-      setLoading(false);
+      if (isMounted.current) setLoading(false);
     }
   };
 
