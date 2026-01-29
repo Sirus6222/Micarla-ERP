@@ -35,7 +35,10 @@ create policy "Public Insert QuoteItems" on "quote_items" for insert with check 
 create policy "Public Update QuoteItems" on "quote_items" for update using (true);
 create policy "Public Delete QuoteItems" on "quote_items" for delete using (true);
 
--- 4. OPTIONAL: Data Migration
+-- 4. Update Invoices Table for Physical Invoice Copy
+alter table invoices add column if not exists "physicalCopyImage" text;
+
+-- 5. OPTIONAL: Data Migration
 -- If you have existing quotes with items in a JSONB 'items' column, run this block to migrate them.
 -- If your 'quotes' table does not have an 'items' column, this part will be skipped or error out safely.
 
