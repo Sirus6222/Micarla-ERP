@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, Trash2, Save, ArrowLeft, CheckCircle, Edit2, X, ChevronRight, RefreshCw, ShieldCheck, FileCheck, Factory, CheckSquare, Lock, Wand2, FileDown, History, AlertCircle, Info, Copy, Tag, User, CreditCard, DollarSign } from 'lucide-react';
+import { Plus, Trash2, Save, ArrowLeft, CheckCircle, Edit2, X, ChevronRight, RefreshCw, ShieldCheck, FileCheck, Factory, CheckSquare, Lock, Wand2, FileDown, History, AlertCircle, Info, Copy, Tag, User, CreditCard, DollarSign, Wallet } from 'lucide-react';
 import { QuoteService, ProductService, CustomerService, FinanceService, AuditService } from '../services/store';
 import { Quote, QuoteLineItem, QuoteStatus, Product, Customer, Role, ApprovalLog, Invoice, AuditRecord } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -415,24 +415,24 @@ export const QuoteBuilder: React.FC = () => {
               <div className="flex flex-wrap gap-2 justify-end">
                 {user?.role === Role.MANAGER && quote.status === QuoteStatus.SUBMITTED && (
                   <>
-                    <button onClick={() => handleWorkflow('REJECT')} className="px-5 py-2.5 border border-red-200 text-red-600 font-bold rounded-lg bg-red-50 hover:bg-red-100 transition-colors shadow-sm">Reject</button>
+                    <button onClick={() => handleWorkflow('REJECT')} className="px-5 py-2.5 border border-red-200 text-red-600 font-bold rounded-lg bg-red-50 hover:bg-red-100 transition-colors shadow-sm">Reject Quote</button>
                     <button onClick={() => handleWorkflow('APPROVE')} className="px-8 py-2.5 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition-all shadow-md active:scale-95">Approve Quote</button>
                   </>
                 )}
                 {quote.status === QuoteStatus.APPROVED && (
-                  <button onClick={() => handleWorkflow('ORDER')} className="px-8 py-2.5 bg-primary-600 text-white font-bold rounded-lg flex items-center gap-2 hover:bg-primary-700 transition-all shadow-md active:scale-95"><FileCheck size={18}/> Confirm Order</button>
+                  <button onClick={() => handleWorkflow('ORDER')} className="px-8 py-2.5 bg-primary-600 text-white font-bold rounded-lg flex items-center gap-2 hover:bg-primary-700 transition-all shadow-md active:scale-95"><FileCheck size={18}/> Convert to Order</button>
                 )}
                 {quote.status === QuoteStatus.ORDERED && (
                   <button onClick={() => handleWorkflow('PRODUCTION')} disabled={!depositPaid} className={`px-8 py-2.5 rounded-lg font-bold flex items-center gap-2 transition-all shadow-md active:scale-95 ${depositPaid ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-stone-100 text-stone-300 cursor-not-allowed border border-stone-200'}`}>
-                    {depositPaid ? <><Factory size={18} /> Send to Factory</> : <><Lock size={18} /> Deposit Required</>}
+                    {depositPaid ? <><Factory size={18} /> Release to Production</> : <><Lock size={18} /> Deposit Required</>}
                   </button>
                 )}
                 {quote.status === QuoteStatus.READY && (
-                  <button onClick={() => handleWorkflow('COMPLETE')} className="px-8 py-2.5 bg-green-600 text-white font-bold rounded-lg flex items-center gap-2 hover:bg-green-700 transition-all shadow-md active:scale-95"><CheckSquare size={18}/> Mark Completed</button>
+                  <button onClick={() => handleWorkflow('COMPLETE')} className="px-8 py-2.5 bg-green-600 text-white font-bold rounded-lg flex items-center gap-2 hover:bg-green-700 transition-all shadow-md active:scale-95"><CheckSquare size={18}/> Mark as Complete</button>
                 )}
                 {isEditable() && quote.status !== QuoteStatus.SUBMITTED && (
                   <button onClick={() => handleWorkflow('SUBMIT')} className="px-8 py-2.5 bg-primary-600 text-white font-bold rounded-lg hover:bg-primary-700 transition-all shadow-md active:scale-95">
-                    Submit for Approval
+                    Submit for Review
                   </button>
                 )}
               </div>
@@ -547,49 +547,63 @@ export const QuoteBuilder: React.FC = () => {
               />
             </div>
             
-            <div className="w-full md:w-1/3 space-y-4 bg-stone-900 p-8 rounded-2xl text-white shadow-xl relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-                 <DollarSign size={80} />
-              </div>
-              <div className="flex justify-between text-stone-400 text-xs font-bold uppercase tracking-widest">
-                <span>{t('subtotal')}</span>
-                <span className="font-mono text-white">ETB {Number(quote.subTotal).toLocaleString()}</span>
-              </div>
-              {totalRowDiscounts > 0 && (
-                <div className="flex justify-between text-primary-400 text-[10px] font-bold italic border-b border-stone-800 pb-2">
-                  <span className="flex items-center gap-1"><Tag size={10} /> Row Discounts Applied</span>
-                  <span>- ETB {totalRowDiscounts.toLocaleString()}</span>
+            <div className="w-full md:w-1/3 bg-white p-6 rounded-2xl border border-stone-200 shadow-lg h-fit">
+              <h3 className="text-lg font-bold text-stone-800 mb-6 flex items-center gap-2">
+                <Wallet className="text-primary-600" size={20}/>
+                Payment Summary
+              </h3>
+
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm text-stone-600">
+                  <span>Subtotal</span>
+                  <span className="font-mono font-medium">ETB {Number(quote.subTotal).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
                 </div>
-              )}
-              <div className="flex justify-between text-stone-400 text-xs font-bold uppercase tracking-widest items-center">
-                <span>Managerial Discount</span>
-                <input 
-                  type="number" 
-                  min="0" 
-                  className="w-28 text-right p-1.5 border border-stone-700 rounded bg-stone-800 font-mono text-xs text-primary-400 focus:ring-1 focus:ring-primary-500 outline-none" 
-                  value={quote.discountAmount || 0} 
-                  onChange={e => handleHeaderChange('discountAmount', e.target.value)} 
-                  disabled={!isEditable() && user?.role !== Role.MANAGER} 
-                />
-              </div>
-              <div className="flex justify-between text-stone-400 text-xs font-bold uppercase tracking-widest">
-                <span>VAT (15%)</span>
-                <span className="font-mono text-white">ETB {Number(quote.tax).toLocaleString()}</span>
-              </div>
-              <div className="pt-6 border-t border-stone-800 flex justify-between items-center">
-                <span className="text-sm font-bold text-stone-300 uppercase tracking-widest">{t('grand_total')}</span>
-                <span className="text-3xl font-black text-primary-400 font-mono">ETB {Number(quote.grandTotal).toLocaleString()}</span>
+
+                {totalRowDiscounts > 0 && (
+                  <div className="flex justify-between text-xs text-green-600 italic">
+                    <span>Includes Item Discounts</span>
+                    <span>- ETB {totalRowDiscounts.toLocaleString()}</span>
+                  </div>
+                )}
+
+                <div className="flex justify-between items-center py-2">
+                   <span className="text-sm text-stone-600">Additional Discount</span>
+                   <div className="flex items-center gap-2">
+                     <span className="text-xs text-stone-400 font-mono">- ETB</span>
+                     <input 
+                       type="number" 
+                       min="0" 
+                       className="w-24 text-right p-1.5 border border-stone-300 rounded text-sm focus:ring-2 focus:ring-primary-500 outline-none transition-all" 
+                       value={quote.discountAmount || 0} 
+                       onChange={e => handleHeaderChange('discountAmount', e.target.value)} 
+                       disabled={!isEditable() && user?.role !== Role.MANAGER} 
+                     />
+                   </div>
+                </div>
+
+                <div className="flex justify-between text-sm text-stone-600 border-t border-stone-100 pt-3">
+                  <span>VAT (15%)</span>
+                  <span className="font-mono font-medium">ETB {Number(quote.tax).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                </div>
+
+                <div className="flex justify-between items-end border-t-2 border-stone-100 pt-4 mt-2">
+                  <div>
+                    <span className="block text-sm font-bold text-stone-900 uppercase tracking-wide">Grand Total</span>
+                    <span className="text-xs text-stone-400 font-medium">Inclusive of VAT</span>
+                  </div>
+                  <span className="text-3xl font-black text-primary-700 font-mono tracking-tight">ETB {Number(quote.grandTotal).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                </div>
               </div>
               
-              <div className="pt-4 space-y-2">
+              <div className="mt-6 pt-6 border-t border-stone-100 space-y-3">
                 {totalPaid > 0 && (
-                  <div className="flex justify-between text-xs font-bold text-green-400 bg-green-400/10 p-2 rounded-lg border border-green-400/20">
+                  <div className="flex justify-between text-xs font-bold text-green-700 bg-green-50 p-3 rounded-lg border border-green-100">
                     <span>Total Paid</span>
                     <span>ETB {totalPaid.toLocaleString()}</span>
                   </div>
                 )}
                 {quote.grandTotal - totalPaid > 0 && totalPaid > 0 && (
-                  <div className="flex justify-between text-xs font-bold text-red-400 bg-red-400/10 p-2 rounded-lg border border-red-400/20">
+                  <div className="flex justify-between text-xs font-bold text-red-700 bg-red-50 p-3 rounded-lg border border-red-100">
                       <span>Outstanding Balance</span>
                       <span>ETB {(quote.grandTotal - totalPaid).toLocaleString()}</span>
                   </div>

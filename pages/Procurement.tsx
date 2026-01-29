@@ -113,7 +113,7 @@ export const Procurement: React.FC = () => {
                 type="submit"
                 className="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-lg shadow-sm transition-colors mt-2"
               >
-                Add to Inventory
+                Update Inventory
               </button>
             </form>
           </div>

@@ -190,3 +190,140 @@ export const StockService = {
     }
   }
 };
+
+export const SystemService = {
+  restoreDemoData: async (): Promise<void> => {
+    console.log('Restoring demo data...');
+    
+    // 1. PRODUCTS
+    const products: Product[] = [
+      { id: 'p1', name: 'Galaxy Black Granite', sku: 'GR-BLK-001', pricePerSqm: 4500, defaultWastage: 15, thickness: 20, currentStock: 120.5, reorderPoint: 50, description: 'Premium Indian black granite with gold flecks.' },
+      { id: 'p2', name: 'Carrara White Marble', sku: 'MR-WHT-002', pricePerSqm: 5200, defaultWastage: 20, thickness: 20, currentStock: 45.0, reorderPoint: 30, description: 'Classic Italian white marble with soft grey veining.' },
+      { id: 'p3', name: 'Calacatta Gold Quartz', sku: 'QZ-GLD-003', pricePerSqm: 6800, defaultWastage: 10, thickness: 20, currentStock: 200.0, reorderPoint: 40, description: 'Engineered quartz stone with bold gold veining.' },
+      { id: 'p4', name: 'Blue Pearl Granite', sku: 'GR-BLU-004', pricePerSqm: 5800, defaultWastage: 15, thickness: 20, currentStock: 80.0, reorderPoint: 25, description: 'Norwegian granite with shimmering blue crystals.' },
+      { id: 'p5', name: 'Ethiopian Gray', sku: 'GR-ETH-005', pricePerSqm: 2800, defaultWastage: 12, thickness: 20, currentStock: 300.0, reorderPoint: 100, description: 'Locally sourced durable gray granite suitable for flooring.' },
+      { id: 'p6', name: 'Rose Pink Granite', sku: 'GR-PNK-006', pricePerSqm: 3200, defaultWastage: 15, thickness: 20, currentStock: 150.0, reorderPoint: 50, description: 'Vibrant pink granite often used for stairs and skirting.' },
+      { id: 'p7', name: 'Absolute Black', sku: 'GR-ABS-007', pricePerSqm: 4800, defaultWastage: 10, thickness: 30, currentStock: 60.0, reorderPoint: 20, description: 'Pure black granite, excellent for kitchen countertops.' }
+    ];
+
+    // 2. CUSTOMERS
+    const customers: Customer[] = [
+      { id: 'c1', name: 'Abebe Kebede', companyName: 'Acme Construction PLC', email: 'abebe@acme.et', phone: '0911234567', address: 'Bole Road, Addis Ababa', creditLimit: 500000, creditHold: false },
+      { id: 'c2', name: 'Sara Tadesse', companyName: 'Modern Interiors', email: 'sara@modern.et', phone: '0922876543', address: 'Kazanchis, Addis Ababa', creditLimit: 200000, creditHold: false },
+      { id: 'c3', name: 'Dawit Construction', companyName: 'Dawit General Contractor', email: 'info@dawit.et', phone: '0933998877', address: 'Lebu, Addis Ababa', creditLimit: 100000, creditHold: true },
+      { id: 'c4', name: 'Yoseph Alemu', companyName: 'Bole Towers', email: 'yoseph@boletowers.com', phone: '0944556677', address: 'Gerji, Addis Ababa', creditLimit: 1000000, creditHold: false },
+      { id: 'c5', name: 'Tigist Haile', companyName: '', email: 'tigist.h@gmail.com', phone: '0912341234', address: 'CMC, Addis Ababa', creditLimit: 50000, creditHold: false }
+    ];
+
+    // 3. QUOTES
+    const quotes: Quote[] = [
+       // Quote 1: Draft
+       {
+        id: 'q1',
+        number: 'Q-1001',
+        customerId: 'c1',
+        customerName: 'Acme Construction PLC',
+        salesRepId: 'u1',
+        salesRepName: 'Alex Sales',
+        date: new Date().toISOString().split('T')[0],
+        status: QuoteStatus.DRAFT,
+        items: [
+          { id: 'i1', productId: 'p1', productName: 'Galaxy Black Granite', width: 2.4, height: 0.6, pieces: 5, depth: 0.02, wastage: 15, pricePerSqm: 4500, totalSqm: 7.2, totalPriceRaw: 32400, pricePlusWaste: 37260, discountPercent: 0 }
+        ],
+        subTotal: 37260,
+        tax: 5589,
+        grandTotal: 42849,
+        approvalHistory: [],
+        stockDeducted: false
+      },
+      // Quote 2: In Production
+      {
+        id: 'q2',
+        number: 'Q-1002',
+        orderNumber: 'ORD-55421',
+        customerId: 'c4',
+        customerName: 'Bole Towers',
+        salesRepId: 'u1',
+        salesRepName: 'Alex Sales',
+        date: new Date(Date.now() - 86400000 * 3).toISOString().split('T')[0], // 3 days ago
+        status: QuoteStatus.IN_PRODUCTION,
+        items: [
+          { id: 'i2a', productId: 'p5', productName: 'Ethiopian Gray', width: 1.2, height: 1.2, pieces: 20, depth: 0.02, wastage: 12, pricePerSqm: 2800, totalSqm: 28.8, totalPriceRaw: 80640, pricePlusWaste: 90316.8, discountPercent: 5 },
+          { id: 'i2b', productId: 'p6', productName: 'Rose Pink Granite', width: 2.0, height: 0.3, pieces: 10, depth: 0.02, wastage: 15, pricePerSqm: 3200, totalSqm: 6.0, totalPriceRaw: 19200, pricePlusWaste: 22080, discountPercent: 0 }
+        ],
+        subTotal: 106776.8, // Approx (90316.8 * 0.95) + 22080... simplified
+        tax: 16016.5,
+        grandTotal: 122793.3,
+        approvalHistory: [
+            { id: 'h1', userId: 'u1', userName: 'Alex Sales', userRole: Role.SALES_REP, action: 'SUBMIT', timestamp: new Date(Date.now() - 86400000 * 2).toISOString() },
+            { id: 'h2', userId: 'u2', userName: 'Sarah Manager', userRole: Role.MANAGER, action: 'APPROVE', timestamp: new Date(Date.now() - 86400000 * 2).toISOString(), comment: 'Approved, good margin.' },
+            { id: 'h3', userId: 'u2', userName: 'Sarah Manager', userRole: Role.MANAGER, action: 'ORDER', timestamp: new Date(Date.now() - 86400000 * 1).toISOString() },
+            { id: 'h4', userId: 'u4', userName: 'Tom Factory', userRole: Role.FACTORY, action: 'ACCEPT', timestamp: new Date(Date.now() - 43200000).toISOString() },
+            { id: 'h5', userId: 'u4', userName: 'Tom Factory', userRole: Role.FACTORY, action: 'START_WORK', timestamp: new Date().toISOString() }
+        ],
+        stockDeducted: false
+      },
+      // Quote 3: Completed
+      {
+        id: 'q3',
+        number: 'Q-998',
+        orderNumber: 'ORD-11029',
+        customerId: 'c2',
+        customerName: 'Modern Interiors',
+        salesRepId: 'u1',
+        salesRepName: 'Alex Sales',
+        date: new Date(Date.now() - 86400000 * 10).toISOString().split('T')[0],
+        status: QuoteStatus.COMPLETED,
+        items: [
+           { id: 'i3', productId: 'p3', productName: 'Calacatta Gold Quartz', width: 3.0, height: 0.9, pieces: 1, depth: 0.02, wastage: 10, pricePerSqm: 6800, totalSqm: 2.7, totalPriceRaw: 18360, pricePlusWaste: 20196, discountPercent: 0 }
+        ],
+        subTotal: 20196,
+        tax: 3029.4,
+        grandTotal: 23225.4,
+        approvalHistory: [],
+        stockDeducted: true
+      }
+    ];
+
+    await supabase.from('products').upsert(products);
+    await supabase.from('customers').upsert(customers);
+    await supabase.from('quotes').upsert(quotes);
+    
+    // 4. STOCK RECORDS (Initial Balance)
+    const stockRecords = products.map(p => ({
+        id: `sr_${p.id}`,
+        productId: p.id,
+        productName: p.name,
+        quantity: p.currentStock,
+        date: new Date().toISOString(),
+        reference: 'Initial Balance',
+        recordedBy: 'System'
+    }));
+    await supabase.from('stockRecords').upsert(stockRecords);
+    
+    // 5. INVOICES & PAYMENTS (For the active/completed quotes)
+    const invoices: Invoice[] = [
+        // Deposit invoice for q2
+        {
+            id: 'inv1', number: 'INV-5001', quoteId: 'q2', orderNumber: 'ORD-55421', 
+            customerId: 'c4', customerName: 'Bole Towers',
+            dateIssued: new Date(Date.now() - 86400000 * 1).toISOString().split('T')[0],
+            dueDate: new Date(Date.now() + 86400000 * 6).toISOString().split('T')[0],
+            type: InvoiceType.DEPOSIT, status: InvoiceStatus.PAID,
+            amount: 60000, taxAmount: 0, totalAmount: 60000, amountPaid: 60000, balanceDue: 0
+        },
+        // Final invoice for q3 (Fully paid)
+        {
+            id: 'inv2', number: 'INV-4900', quoteId: 'q3', orderNumber: 'ORD-11029', 
+            customerId: 'c2', customerName: 'Modern Interiors',
+            dateIssued: new Date(Date.now() - 86400000 * 8).toISOString().split('T')[0],
+            dueDate: new Date(Date.now() - 86400000 * 1).toISOString().split('T')[0],
+            type: InvoiceType.FINAL, status: InvoiceStatus.PAID,
+            amount: 23225.4, taxAmount: 0, totalAmount: 23225.4, amountPaid: 23225.4, balanceDue: 0
+        }
+    ];
+    await supabase.from('invoices').upsert(invoices);
+
+    console.log('Demo data restored successfully.');
+  }
+};

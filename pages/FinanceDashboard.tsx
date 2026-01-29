@@ -181,7 +181,7 @@ export const FinanceDashboard: React.FC = () => {
                             </div>
                             {pctInvoiced < 99.9 ? (
                                 <button onClick={() => openInvoiceModal(order)} className="w-full mt-2 py-2 text-xs font-bold text-primary-700 border border-primary-200 bg-primary-50 rounded-lg hover:bg-primary-100 flex items-center justify-center gap-2 transition-colors">
-                                    <Plus size={14} /> {totalInvoiced > 0 ? 'Invoice Final Balance' : 'Invoice Deposit'}
+                                    <Plus size={14} /> {totalInvoiced > 0 ? 'Create Final Invoice' : 'Create Deposit Invoice'}
                                 </button>
                             ) : (
                                 <div className="mt-2 text-center text-xs text-green-600 font-bold bg-green-50 py-2 rounded-lg border border-green-100 flex items-center justify-center gap-2">
@@ -290,7 +290,7 @@ export const FinanceDashboard: React.FC = () => {
                           </span>
                       </div>
                       <button onClick={createInvoice} className="w-full py-4 bg-primary-600 text-white font-bold rounded-xl hover:bg-primary-700 shadow-md transition-transform active:scale-95">
-                          Confirm & Issue Invoice
+                          Issue Invoice
                       </button>
                   </div>
               </div>
@@ -341,7 +341,7 @@ export const FinanceDashboard: React.FC = () => {
                         </div>
                       </div>
                       <button onClick={recordPayment} className="w-full py-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-md transition-transform active:scale-95">
-                          Verify & Record Payment
+                          Record Payment
                       </button>
                   </div>
               </div>

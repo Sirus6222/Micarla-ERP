@@ -1,8 +1,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, DollarSign, FileText, CheckCircle, Activity, Wallet, AlertCircle, ShieldAlert, TrendingUp, Package } from 'lucide-react';
-import { QuoteService, FinanceService, CustomerService } from '../services/store';
+import { Plus, DollarSign, FileText, CheckCircle, Activity, Wallet, AlertCircle, ShieldAlert, TrendingUp, Package, RefreshCcw } from 'lucide-react';
+import { QuoteService, FinanceService, CustomerService, SystemService } from '../services/store';
 import { Quote, QuoteStatus, Invoice, Role, Customer } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -11,6 +11,7 @@ export const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
+  const [restoring, setRestoring] = useState(false);
   const [data, setData] = useState({
     quotes: [] as Quote[],
     invoices: [] as Invoice[],
@@ -25,6 +26,14 @@ export const Dashboard: React.FC = () => {
     };
     load();
   }, []);
+
+  const handleRestore = async () => {
+    if(confirm("Restore demo data? This will overwrite existing records with same IDs.")) {
+      setRestoring(true);
+      await SystemService.restoreDemoData();
+      window.location.reload();
+    }
+  };
 
   if (loading || !user) return <div className="p-12 text-center text-stone-400">Loading Workspace...</div>;
 
@@ -147,6 +156,10 @@ export const Dashboard: React.FC = () => {
           <h2 className="text-2xl font-bold text-stone-900">{t('dashboard')}</h2>
           <p className="text-sm text-stone-500">{user.role} Control Panel</p>
         </div>
+        <button onClick={handleRestore} disabled={restoring} className="flex items-center gap-2 text-xs font-bold text-stone-400 hover:text-primary-600 bg-stone-100 px-3 py-2 rounded-lg transition-colors">
+          <RefreshCcw size={12} className={restoring ? 'animate-spin' : ''} />
+          {restoring ? 'Restoring...' : 'Restore Demo Data'}
+        </button>
       </div>
       {user.role === Role.SALES_REP && renderSalesView()}
       {user.role === Role.MANAGER && renderManagerView()}

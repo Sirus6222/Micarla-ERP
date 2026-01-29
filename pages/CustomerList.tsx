@@ -63,7 +63,7 @@ export const CustomerList: React.FC = () => {
               </div>
               <div className="flex gap-2 justify-end">
                   <button onClick={() => setShowAdd(false)} className="px-4 py-2 text-stone-500 hover:bg-stone-100 rounded">Cancel</button>
-                  <button onClick={handleSave} className="px-4 py-2 bg-primary-600 text-white rounded font-medium">Save Customer</button>
+                  <button onClick={handleSave} className="px-4 py-2 bg-primary-600 text-white rounded font-medium">Create Customer</button>
               </div>
           </div>
       )}
