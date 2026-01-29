@@ -320,14 +320,52 @@ export const QuoteBuilder: React.FC = () => {
   const formatCurrency = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
-    <div className="bg-stone-50 min-h-screen pb-20">
+    <div className="bg-stone-50 min-h-screen pb-20 print:bg-white print:pb-0">
       <style>{`
         @media print {
+          @page { margin: 1cm; size: A4; }
+          body { 
+            background: white !important; 
+            -webkit-print-color-adjust: exact !important; 
+            print-color-adjust: exact !important; 
+          }
           .no-print { display: none !important; }
-          body { background: white; }
-          .print-container { padding: 0; width: 100%; }
-          table { width: 100%; border-collapse: collapse; }
-          th, td { border: 1px solid #ddd; padding: 8px; font-size: 10pt; }
+          .print-full-width { 
+            width: 100% !important; 
+            max-width: none !important; 
+            margin: 0 !important; 
+            padding: 0 !important; 
+            border: none !important;
+            box-shadow: none !important;
+          }
+          
+          /* Form Elements Reset */
+          input, select, textarea { 
+            border: none !important; 
+            background: transparent !important; 
+            resize: none !important; 
+            padding: 0 !important;
+            appearance: none !important;
+            box-shadow: none !important;
+            font-size: 9pt !important;
+            color: #000 !important;
+          }
+          
+          /* Hide placeholders in print */
+          input::placeholder, textarea::placeholder { color: transparent !important; }
+
+          /* Table Styling */
+          table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+          thead { background-color: #f3f4f6 !important; color: black !important; border-bottom: 2px solid #000 !important; }
+          th, td { border-bottom: 1px solid #ddd; padding: 4px 8px; }
+          tr { break-inside: avoid; }
+          
+          /* Custom Print Headers */
+          .print-header { display: block !important; margin-bottom: 20px; }
+          .print-footer { display: block !important; margin-top: 30px; page-break-inside: avoid; }
+          
+          /* Hide icons/colors in print */
+          .status-badge { border: 1px solid #000; color: #000 !important; background: transparent !important; }
         }
       `}</style>
 
@@ -343,14 +381,16 @@ export const QuoteBuilder: React.FC = () => {
           </div>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => window.print()} className="p-2 border border-stone-200 rounded-lg text-stone-500 hover:bg-stone-50 transition-colors"><FileDown size={20} /></button>
+          <button onClick={() => window.print()} className="p-2 border border-stone-200 rounded-lg text-stone-500 hover:bg-stone-50 transition-colors flex items-center gap-2 font-bold text-xs">
+              <FileDown size={18} /> Print / Export
+          </button>
           {isEditable() && (
             <>
               <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleScanSheet} />
-              <button onClick={() => fileInputRef.current?.click()} className="hidden md:flex items-center gap-2 px-4 py-2 text-primary-600 hover:bg-primary-50 rounded-lg font-bold border border-primary-100 transition-colors">
-                {scanning ? <RefreshCw className="animate-spin" size={18} /> : <Wand2 size={18} />} {t('scan_ai')}
+              <button onClick={() => fileInputRef.current?.click()} className="hidden md:flex items-center gap-2 px-4 py-2 text-primary-600 hover:bg-primary-50 rounded-lg font-bold border border-primary-100 transition-colors text-xs">
+                {scanning ? <RefreshCw className="animate-spin" size={16} /> : <Wand2 size={16} />} {t('scan_ai')}
               </button>
-              <button onClick={() => handleWorkflow('SUBMIT')} className="bg-stone-800 text-white px-6 py-2 rounded-lg font-bold shadow-sm hover:bg-stone-900 transition-all active:scale-95">
+              <button onClick={() => handleWorkflow('SUBMIT')} className="bg-stone-800 text-white px-4 py-2 rounded-lg font-bold shadow-sm hover:bg-stone-900 transition-all active:scale-95 text-xs">
                 Save Draft
               </button>
             </>
@@ -358,8 +398,48 @@ export const QuoteBuilder: React.FC = () => {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8">
-        {/* PROGRESS BAR */}
+      <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8 print-full-width">
+        
+        {/* PRINT ONLY HEADER */}
+        <div className="hidden print-header">
+            <div className="flex justify-between items-start border-b-2 border-stone-900 pb-4 mb-6">
+                <div>
+                    <h1 className="text-3xl font-black text-stone-900 tracking-tight uppercase">GraniteFlow ERP</h1>
+                    <p className="text-sm font-medium text-stone-600 mt-1">Enterprise Stone Management</p>
+                    <div className="text-xs text-stone-500 mt-2 leading-relaxed">
+                        Bole Road, Addis Ababa, Ethiopia<br/>
+                        Tax ID: 0012345678 | Phone: +251 911 234 567
+                    </div>
+                </div>
+                <div className="text-right">
+                    <h2 className="text-4xl font-light text-stone-800 uppercase tracking-widest">
+                        {quote.status === QuoteStatus.ORDERED || quote.status === QuoteStatus.IN_PRODUCTION || quote.status === QuoteStatus.COMPLETED ? 'Order' : 'Quote'}
+                    </h2>
+                    <p className="text-lg font-bold text-stone-900 mt-1">{quote.orderNumber || quote.number}</p>
+                    <p className="text-xs text-stone-500">Date: {new Date(quote.date).toLocaleDateString()}</p>
+                </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-8 mb-8">
+                <div>
+                    <h3 className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-1 border-b pb-1">Bill To</h3>
+                    <div className="text-sm font-bold text-stone-900">{customer?.companyName || customer?.name || 'Walk-in Customer'}</div>
+                    {customer && (
+                        <div className="text-xs text-stone-600 mt-1">
+                            {customer.name}<br/>
+                            {customer.address}<br/>
+                            {customer.phone}
+                        </div>
+                    )}
+                </div>
+                <div>
+                     <h3 className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-1 border-b pb-1">Sales Rep</h3>
+                     <div className="text-sm font-bold text-stone-900">{quote.salesRepName}</div>
+                </div>
+            </div>
+        </div>
+
+        {/* PROGRESS BAR (Hidden in Print) */}
         <div className="bg-white p-6 rounded-xl border border-stone-200 shadow-sm no-print">
           <div className="flex justify-between mb-4">
             {stages.map((s, idx) => (
@@ -374,7 +454,7 @@ export const QuoteBuilder: React.FC = () => {
           </div>
         </div>
 
-        {/* WORKFLOW HISTORY & ACTIONS (MOVED ABOVE TABLE) */}
+        {/* WORKFLOW HISTORY & ACTIONS (Hidden in Print) */}
         <div className="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden no-print">
           <div className="p-4 border-b bg-stone-50 font-bold text-stone-700 flex items-center justify-between">
             <div className="flex items-center gap-2 uppercase text-[10px] tracking-widest"><History size={14} className="text-stone-400" /> Workflow & History</div>
@@ -446,8 +526,8 @@ export const QuoteBuilder: React.FC = () => {
         </div>
 
         {/* MAIN ENTRY FORM (FULL WIDTH) */}
-        <div className="bg-white border border-stone-200 rounded-xl shadow-lg overflow-hidden">
-          {/* HEADER SECTION */}
+        <div className="bg-white border border-stone-200 rounded-xl shadow-lg overflow-hidden print-full-width">
+          {/* HEADER SECTION - Display Only in Print if needed, but we have a custom header */}
           <div className="p-6 bg-stone-50 border-b grid grid-cols-1 md:grid-cols-3 gap-6 no-print">
             <div className="col-span-1 md:col-span-2">
               <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">{t('customer')}</label>
@@ -474,8 +554,8 @@ export const QuoteBuilder: React.FC = () => {
           </div>
 
           {/* LINE ITEMS TABLE */}
-          <div className="overflow-x-auto w-full">
-            <table className="w-full text-left border-collapse min-w-[1000px]">
+          <div className="overflow-x-auto w-full print-full-width">
+            <table className="w-full text-left border-collapse min-w-[1000px] print:min-w-0">
               <thead className="bg-stone-100 text-stone-500 text-[10px] uppercase font-extrabold border-b tracking-tighter">
                 <tr>
                   <th className="p-4 w-10 text-center">#</th>
@@ -485,15 +565,15 @@ export const QuoteBuilder: React.FC = () => {
                   <th className="p-4 w-32 text-center">{t('price_sqm')}</th>
                   <th className="p-4 w-24 text-center">{t('pieces')}</th>
                   <th className="p-4 w-24 text-primary-600 text-center">{t('discount')}%</th>
-                  <th className="p-4 w-28 bg-stone-50 text-right">Tot m²</th>
-                  <th className="p-4 w-36 bg-primary-50 text-primary-900 border-l text-right">{t('total')}</th>
+                  <th className="p-4 w-28 bg-stone-50 text-right print:bg-transparent">Tot m²</th>
+                  <th className="p-4 w-36 bg-primary-50 text-primary-900 border-l text-right print:bg-transparent print:text-black">{t('total')}</th>
                   <th className="p-4 w-24 text-center no-print">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
                 {quote.items.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="p-12 text-center text-stone-400 italic text-sm">No items added yet. Click "Add Line Item" below.</td>
+                    <td colSpan={10} className="p-12 text-center text-stone-400 italic text-sm">No items added yet.</td>
                   </tr>
                 ) : (
                   quote.items.map((item, index) => (
@@ -515,8 +595,8 @@ export const QuoteBuilder: React.FC = () => {
                       <td className="p-4"><input type="number" step="1" min="0" value={item.pricePerSqm} disabled={!isEditable()} onChange={e => updateLineItem(item.id, 'pricePerSqm', e.target.value)} className="w-full p-2 border border-stone-200 rounded-lg text-center text-xs focus:ring-1 focus:ring-primary-500 outline-none font-mono" /></td>
                       <td className="p-4"><input type="number" min="0" value={item.pieces} disabled={!isEditable()} onChange={e => updateLineItem(item.id, 'pieces', e.target.value)} className="w-full p-2 border border-stone-200 rounded-lg text-center text-xs font-bold focus:ring-1 focus:ring-primary-500 outline-none" /></td>
                       <td className="p-4"><input type="number" min="0" max="100" value={item.discountPercent || 0} disabled={!isEditable()} onChange={e => updateLineItem(item.id, 'discountPercent', e.target.value)} className="w-full p-2 border border-primary-100 rounded-lg text-center text-primary-600 text-xs focus:ring-1 focus:ring-primary-500 outline-none" /></td>
-                      <td className="p-4 text-right bg-stone-50 font-mono text-xs text-stone-700">{(item.totalSqm || 0).toFixed(2)}</td>
-                      <td className="p-4 text-right bg-primary-50 border-l font-bold text-primary-800 text-sm">ETB {formatCurrency(item.pricePlusWaste)}</td>
+                      <td className="p-4 text-right bg-stone-50 font-mono text-xs text-stone-700 print:bg-transparent">{(item.totalSqm || 0).toFixed(2)}</td>
+                      <td className="p-4 text-right bg-primary-50 border-l font-bold text-primary-800 text-sm print:bg-transparent print:text-black">ETB {formatCurrency(item.pricePlusWaste)}</td>
                       <td className="p-4 text-center no-print">
                         {isEditable() && (
                           <div className="flex gap-1 justify-center md:opacity-0 group-hover:opacity-100 transition-opacity">
@@ -540,20 +620,20 @@ export const QuoteBuilder: React.FC = () => {
           </div>
 
           {/* FOOTER SECTION: NOTES & TOTALS */}
-          <div className="p-8 flex flex-col md:flex-row justify-between items-start gap-12 border-t bg-white">
+          <div className="p-8 flex flex-col md:flex-row justify-between items-start gap-12 border-t bg-white print-full-width">
             <div className="w-full md:w-1/2">
               <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-2 flex items-center gap-1"><Info size={12}/> Fabrication Instructions / Notes</label>
               <textarea 
                 value={quote.notes || ''} 
                 disabled={!isEditable()} 
-                className="w-full h-40 p-4 border border-stone-300 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 transition-all outline-none bg-stone-50/50" 
+                className="w-full h-40 p-4 border border-stone-300 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 transition-all outline-none bg-stone-50/50 print:bg-transparent print:border-none print:h-auto" 
                 placeholder="Specific instructions for factory or delivery..." 
                 onChange={e => handleHeaderChange('notes', e.target.value)} 
               />
             </div>
             
-            <div className="w-full md:w-1/3 bg-white p-6 rounded-2xl border border-stone-200 shadow-lg h-fit">
-              <h3 className="text-lg font-bold text-stone-800 mb-6 flex items-center gap-2">
+            <div className="w-full md:w-1/3 bg-white p-6 rounded-2xl border border-stone-200 shadow-lg h-fit print:border-none print:shadow-none print:p-0">
+              <h3 className="text-lg font-bold text-stone-800 mb-6 flex items-center gap-2 no-print">
                 <Wallet className="text-primary-600" size={20}/>
                 Payment Summary
               </h3>
@@ -578,7 +658,7 @@ export const QuoteBuilder: React.FC = () => {
                      <input 
                        type="number" 
                        min="0" 
-                       className="w-24 text-right p-1.5 border border-stone-300 rounded text-sm focus:ring-2 focus:ring-primary-500 outline-none transition-all" 
+                       className="w-24 text-right p-1.5 border border-stone-300 rounded text-sm focus:ring-2 focus:ring-primary-500 outline-none transition-all print:w-auto" 
                        value={quote.discountAmount || 0} 
                        onChange={e => handleHeaderChange('discountAmount', e.target.value)} 
                        disabled={!isEditable() && user?.role !== Role.MANAGER} 
@@ -591,24 +671,24 @@ export const QuoteBuilder: React.FC = () => {
                   <span className="font-mono font-medium">ETB {formatCurrency(quote.tax)}</span>
                 </div>
 
-                <div className="flex justify-between items-end border-t-2 border-stone-100 pt-4 mt-2">
+                <div className="flex justify-between items-end border-t-2 border-stone-100 pt-4 mt-2 print:border-black">
                   <div>
                     <span className="block text-sm font-bold text-stone-900 uppercase tracking-wide">Grand Total</span>
-                    <span className="text-xs text-stone-400 font-medium">Inclusive of VAT</span>
+                    <span className="text-xs text-stone-400 font-medium no-print">Inclusive of VAT</span>
                   </div>
-                  <span className="text-3xl font-black text-primary-700 font-mono tracking-tight">ETB {formatCurrency(quote.grandTotal)}</span>
+                  <span className="text-3xl font-black text-primary-700 font-mono tracking-tight print:text-black">ETB {formatCurrency(quote.grandTotal)}</span>
                 </div>
               </div>
               
               <div className="mt-6 pt-6 border-t border-stone-100 space-y-3">
                 {totalPaid > 0 && (
-                  <div className="flex justify-between text-xs font-bold text-green-700 bg-green-50 p-3 rounded-lg border border-green-100">
+                  <div className="flex justify-between text-xs font-bold text-green-700 bg-green-50 p-3 rounded-lg border border-green-100 print:bg-transparent print:border-none print:text-black">
                     <span>Total Paid</span>
                     <span>ETB {formatCurrency(totalPaid)}</span>
                   </div>
                 )}
                 {quote.grandTotal - totalPaid > 0 && totalPaid > 0 && (
-                  <div className="flex justify-between text-xs font-bold text-red-700 bg-red-50 p-3 rounded-lg border border-red-100">
+                  <div className="flex justify-between text-xs font-bold text-red-700 bg-red-50 p-3 rounded-lg border border-red-100 print:bg-transparent print:border-none print:text-black">
                       <span>Outstanding Balance</span>
                       <span>ETB {formatCurrency(quote.grandTotal - totalPaid)}</span>
                   </div>
@@ -617,6 +697,26 @@ export const QuoteBuilder: React.FC = () => {
             </div>
           </div>
         </div>
+        
+        {/* PRINT FOOTER */}
+        <div className="hidden print-footer pt-8 mt-8 border-t-2 border-stone-200">
+             <div className="grid grid-cols-2 gap-12">
+                 <div>
+                     <h4 className="text-xs font-bold uppercase mb-4">Terms & Conditions</h4>
+                     <ul className="text-[10px] list-disc list-inside text-stone-600 space-y-1">
+                         <li>50% Deposit required to commence production.</li>
+                         <li>Final balance due prior to delivery or pickup.</li>
+                         <li>Quotations are valid for 15 days.</li>
+                         <li>Natural stone may vary in color and pattern.</li>
+                     </ul>
+                 </div>
+                 <div>
+                     <div className="h-16 border-b border-stone-400 mb-2"></div>
+                     <p className="text-xs font-bold text-center uppercase">Authorized Signature & Date</p>
+                 </div>
+             </div>
+        </div>
+
       </div>
     </div>
   );

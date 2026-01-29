@@ -77,15 +77,22 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   );
 
   return (
-    <div className="flex h-screen bg-stone-50 overflow-hidden">
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-stone-900 text-white flex items-center justify-between px-4 z-40">
+    <div className="flex h-screen bg-stone-50 overflow-hidden print:h-auto print:overflow-visible">
+      {/* Mobile Header - Hidden on Print */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-stone-900 text-white flex items-center justify-between px-4 z-40 print:hidden">
          <span className="font-bold">GraniteFlow</span>
          <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2"><Menu size={24} /></button>
       </div>
-      <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-stone-900 text-white flex flex-col transition-transform duration-300 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+
+      {/* Sidebar - Hidden on Print */}
+      <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-stone-900 text-white flex flex-col transition-transform duration-300 print:hidden ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         <NavContent />
       </aside>
-      <main className="flex-1 overflow-auto pt-16 lg:pt-0">{children}</main>
+      
+      {/* Main Content */}
+      <main className="flex-1 overflow-auto pt-16 lg:pt-0 print:pt-0 print:overflow-visible">
+        {children}
+      </main>
     </div>
   );
 };
