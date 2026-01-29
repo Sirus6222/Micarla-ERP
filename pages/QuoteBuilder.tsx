@@ -323,11 +323,13 @@ export const QuoteBuilder: React.FC = () => {
     <div className="bg-stone-50 min-h-screen pb-20 print:bg-white print:pb-0">
       <style>{`
         @media print {
-          @page { margin: 1cm; size: A4; }
+          @page { margin: 0.5cm; size: A4; }
           body { 
             background: white !important; 
             -webkit-print-color-adjust: exact !important; 
-            print-color-adjust: exact !important; 
+            print-color-adjust: exact !important;
+            font-size: 11px !important; 
+            color: #000 !important;
           }
           .no-print { display: none !important; }
           .print-full-width { 
@@ -347,25 +349,43 @@ export const QuoteBuilder: React.FC = () => {
             padding: 0 !important;
             appearance: none !important;
             box-shadow: none !important;
-            font-size: 9pt !important;
+            font-size: 11px !important;
             color: #000 !important;
+            line-height: 1.2;
           }
           
           /* Hide placeholders in print */
           input::placeholder, textarea::placeholder { color: transparent !important; }
 
-          /* Table Styling */
-          table { width: 100%; border-collapse: collapse; font-size: 9pt; }
-          thead { background-color: #f3f4f6 !important; color: black !important; border-bottom: 2px solid #000 !important; }
-          th, td { border-bottom: 1px solid #ddd; padding: 4px 8px; }
+          /* Table Styling - Compact */
+          table { width: 100%; border-collapse: collapse; font-size: 11px; }
+          thead { background-color: #f3f4f6 !important; border-bottom: 2px solid #000 !important; }
+          th { padding: 4px 2px !important; font-size: 10px !important; font-weight: 800 !important; }
+          td { border-bottom: 1px solid #ddd; padding: 4px 2px !important; }
           tr { break-inside: avoid; }
           
-          /* Custom Print Headers */
-          .print-header { display: block !important; margin-bottom: 20px; }
-          .print-footer { display: block !important; margin-top: 30px; page-break-inside: avoid; }
+          /* Custom Print Headers - Compact */
+          .print-header { display: block !important; margin-bottom: 10px; }
+          .print-header h1 { font-size: 20px !important; margin-bottom: 0 !important; line-height: 1.2; }
+          .print-header h2 { font-size: 16px !important; margin-bottom: 0 !important; }
+          .print-header-meta { font-size: 9px !important; line-height: 1.3; }
+          
+          /* Grid adjustments */
+          .print-grid-compact { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem !important; margin-bottom: 1rem !important; }
+          
+          /* Summary Section Compact */
+          .print-summary-text { font-size: 11px !important; }
+          .print-grand-total { font-size: 16px !important; font-weight: 900 !important; }
+          
+          /* Footer */
+          .print-footer { display: block !important; margin-top: 10px; padding-top: 10px; page-break-inside: avoid; border-top: 1px solid #ccc !important; }
           
           /* Hide icons/colors in print */
           .status-badge { border: 1px solid #000; color: #000 !important; background: transparent !important; }
+          
+          /* Ensure flex containers work well */
+          .print-flex-row { display: flex !important; flex-direction: row !important; gap: 2rem !important; }
+          .print-w-half { width: 50% !important; }
         }
       `}</style>
 
@@ -398,15 +418,15 @@ export const QuoteBuilder: React.FC = () => {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8 print-full-width">
+      <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8 print-full-width print:p-0 print:space-y-4">
         
         {/* PRINT ONLY HEADER */}
         <div className="hidden print-header">
-            <div className="flex justify-between items-start border-b-2 border-stone-900 pb-4 mb-6">
+            <div className="flex justify-between items-start border-b-2 border-stone-900 pb-2 mb-4">
                 <div>
                     <h1 className="text-3xl font-black text-stone-900 tracking-tight uppercase">GraniteFlow ERP</h1>
-                    <p className="text-sm font-medium text-stone-600 mt-1">Enterprise Stone Management</p>
-                    <div className="text-xs text-stone-500 mt-2 leading-relaxed">
+                    <p className="text-sm font-medium text-stone-600">Enterprise Stone Management</p>
+                    <div className="text-xs text-stone-500 mt-1 leading-tight print-header-meta">
                         Bole Road, Addis Ababa, Ethiopia<br/>
                         Tax ID: 0012345678 | Phone: +251 911 234 567
                     </div>
@@ -415,17 +435,17 @@ export const QuoteBuilder: React.FC = () => {
                     <h2 className="text-4xl font-light text-stone-800 uppercase tracking-widest">
                         {quote.status === QuoteStatus.ORDERED || quote.status === QuoteStatus.IN_PRODUCTION || quote.status === QuoteStatus.COMPLETED ? 'Order' : 'Quote'}
                     </h2>
-                    <p className="text-lg font-bold text-stone-900 mt-1">{quote.orderNumber || quote.number}</p>
+                    <p className="text-lg font-bold text-stone-900 mt-0.5">{quote.orderNumber || quote.number}</p>
                     <p className="text-xs text-stone-500">Date: {new Date(quote.date).toLocaleDateString()}</p>
                 </div>
             </div>
             
-            <div className="grid grid-cols-2 gap-8 mb-8">
+            <div className="grid grid-cols-2 gap-4 mb-4 print-grid-compact">
                 <div>
-                    <h3 className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-1 border-b pb-1">Bill To</h3>
+                    <h3 className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-0.5 border-b pb-0.5">Bill To</h3>
                     <div className="text-sm font-bold text-stone-900">{customer?.companyName || customer?.name || 'Walk-in Customer'}</div>
                     {customer && (
-                        <div className="text-xs text-stone-600 mt-1">
+                        <div className="text-xs text-stone-600 mt-0.5 leading-tight">
                             {customer.name}<br/>
                             {customer.address}<br/>
                             {customer.phone}
@@ -433,7 +453,7 @@ export const QuoteBuilder: React.FC = () => {
                     )}
                 </div>
                 <div>
-                     <h3 className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-1 border-b pb-1">Sales Rep</h3>
+                     <h3 className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-0.5 border-b pb-0.5">Sales Rep</h3>
                      <div className="text-sm font-bold text-stone-900">{quote.salesRepName}</div>
                 </div>
             </div>
@@ -620,8 +640,8 @@ export const QuoteBuilder: React.FC = () => {
           </div>
 
           {/* FOOTER SECTION: NOTES & TOTALS */}
-          <div className="p-8 flex flex-col md:flex-row justify-between items-start gap-12 border-t bg-white print-full-width">
-            <div className="w-full md:w-1/2">
+          <div className="p-8 flex flex-col md:flex-row justify-between items-start gap-12 border-t bg-white print-full-width print:p-0 print:border-t-0 print-flex-row">
+            <div className="w-full md:w-1/2 print-w-half">
               <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-2 flex items-center gap-1"><Info size={12}/> Fabrication Instructions / Notes</label>
               <textarea 
                 value={quote.notes || ''} 
@@ -632,13 +652,13 @@ export const QuoteBuilder: React.FC = () => {
               />
             </div>
             
-            <div className="w-full md:w-1/3 bg-white p-6 rounded-2xl border border-stone-200 shadow-lg h-fit print:border-none print:shadow-none print:p-0">
+            <div className="w-full md:w-1/3 bg-white p-6 rounded-2xl border border-stone-200 shadow-lg h-fit print:border-none print:shadow-none print:p-0 print-w-half">
               <h3 className="text-lg font-bold text-stone-800 mb-6 flex items-center gap-2 no-print">
                 <Wallet className="text-primary-600" size={20}/>
                 Payment Summary
               </h3>
 
-              <div className="space-y-3">
+              <div className="space-y-3 print-summary-text">
                 <div className="flex justify-between text-sm text-stone-600">
                   <span>Subtotal</span>
                   <span className="font-mono font-medium">ETB {formatCurrency(quote.subTotal)}</span>
@@ -654,7 +674,7 @@ export const QuoteBuilder: React.FC = () => {
                 <div className="flex justify-between items-center py-2">
                    <span className="text-sm text-stone-600">Additional Discount</span>
                    <div className="flex items-center gap-2">
-                     <span className="text-xs text-stone-400 font-mono">- ETB</span>
+                     <span className="text-xs text-stone-400 font-mono no-print">- ETB</span>
                      <input 
                        type="number" 
                        min="0" 
@@ -676,7 +696,7 @@ export const QuoteBuilder: React.FC = () => {
                     <span className="block text-sm font-bold text-stone-900 uppercase tracking-wide">Grand Total</span>
                     <span className="text-xs text-stone-400 font-medium no-print">Inclusive of VAT</span>
                   </div>
-                  <span className="text-3xl font-black text-primary-700 font-mono tracking-tight print:text-black">ETB {formatCurrency(quote.grandTotal)}</span>
+                  <span className="text-3xl font-black text-primary-700 font-mono tracking-tight print:text-black print-grand-total">ETB {formatCurrency(quote.grandTotal)}</span>
                 </div>
               </div>
               
@@ -702,8 +722,8 @@ export const QuoteBuilder: React.FC = () => {
         <div className="hidden print-footer pt-8 mt-8 border-t-2 border-stone-200">
              <div className="grid grid-cols-2 gap-12">
                  <div>
-                     <h4 className="text-xs font-bold uppercase mb-4">Terms & Conditions</h4>
-                     <ul className="text-[10px] list-disc list-inside text-stone-600 space-y-1">
+                     <h4 className="text-[10px] font-bold uppercase mb-2">Terms & Conditions</h4>
+                     <ul className="text-[9px] list-disc list-inside text-stone-600 space-y-0.5">
                          <li>50% Deposit required to commence production.</li>
                          <li>Final balance due prior to delivery or pickup.</li>
                          <li>Quotations are valid for 15 days.</li>
@@ -711,8 +731,8 @@ export const QuoteBuilder: React.FC = () => {
                      </ul>
                  </div>
                  <div>
-                     <div className="h-16 border-b border-stone-400 mb-2"></div>
-                     <p className="text-xs font-bold text-center uppercase">Authorized Signature & Date</p>
+                     <div className="h-12 border-b border-stone-400 mb-1"></div>
+                     <p className="text-[9px] font-bold text-center uppercase">Authorized Signature & Date</p>
                  </div>
              </div>
         </div>
