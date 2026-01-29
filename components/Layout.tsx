@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileText, Box, Users, Factory, Menu, X, Wallet, ChevronDown, PackagePlus, Languages } from 'lucide-react';
+import { LayoutDashboard, FileText, Box, Users, Factory, Menu, X, Wallet, ChevronDown, PackagePlus, Languages, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Role } from '../types';
@@ -9,18 +9,18 @@ import { Role } from '../types';
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { user, availableUsers, switchUser, hasRole } = useAuth();
+  const { user, signOut, hasRole } = useAuth();
   const { locale, setLocale, t } = useLanguage();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
   const navItems = [
-    { path: '/', label: t('dashboard'), icon: LayoutDashboard, roles: [Role.SALES_REP, Role.MANAGER, Role.FINANCE, Role.FACTORY] },
-    { path: '/quotes', label: t('quotes'), icon: FileText, roles: [Role.SALES_REP, Role.MANAGER, Role.FINANCE] },
-    { path: '/finance', label: t('finance'), icon: Wallet, roles: [Role.FINANCE, Role.MANAGER] },
-    { path: '/production', label: t('production'), icon: Factory, roles: [Role.MANAGER, Role.SALES_REP, Role.FACTORY] },
-    { path: '/procurement', label: t('procurement'), icon: PackagePlus, roles: [Role.MANAGER] },
-    { path: '/products', label: t('products'), icon: Box, roles: [Role.MANAGER, Role.SALES_REP, Role.FACTORY] },
-    { path: '/customers', label: t('customers'), icon: Users, roles: [Role.SALES_REP, Role.MANAGER, Role.FINANCE] },
+    { path: '/', label: t('dashboard'), icon: LayoutDashboard, roles: [Role.SALES_REP, Role.MANAGER, Role.FINANCE, Role.FACTORY, Role.ADMIN] },
+    { path: '/quotes', label: t('quotes'), icon: FileText, roles: [Role.SALES_REP, Role.MANAGER, Role.FINANCE, Role.ADMIN] },
+    { path: '/finance', label: t('finance'), icon: Wallet, roles: [Role.FINANCE, Role.MANAGER, Role.ADMIN] },
+    { path: '/production', label: t('production'), icon: Factory, roles: [Role.MANAGER, Role.SALES_REP, Role.FACTORY, Role.ADMIN] },
+    { path: '/procurement', label: t('procurement'), icon: PackagePlus, roles: [Role.MANAGER, Role.ADMIN] },
+    { path: '/products', label: t('products'), icon: Box, roles: [Role.MANAGER, Role.SALES_REP, Role.FACTORY, Role.ADMIN] },
+    { path: '/customers', label: t('customers'), icon: Users, roles: [Role.SALES_REP, Role.MANAGER, Role.FINANCE, Role.ADMIN] },
   ];
 
   const NavContent = () => (
@@ -63,14 +63,11 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             <ChevronDown size={14} />
           </button>
           {isUserMenuOpen && (
-            <div className="absolute bottom-full left-0 w-full mb-2 bg-white rounded-lg shadow-xl border border-stone-200 text-stone-800 z-50">
-              <div className="p-2 bg-stone-50 border-b text-[10px] font-bold text-stone-400 uppercase">Switch Role</div>
-              {availableUsers.map(u => (
-                <button key={u.id} onClick={() => { switchUser(u.id); setIsUserMenuOpen(false); }} className={`w-full text-left px-4 py-3 hover:bg-stone-100 flex items-center gap-2 ${user?.id === u.id ? 'bg-primary-50 text-primary-700' : ''}`}>
-                  <span className="text-xs font-mono bg-stone-200 px-1 rounded">{u.role.substring(0,1)}</span>
-                  <span className="text-sm font-medium">{u.name}</span>
-                </button>
-              ))}
+            <div className="absolute bottom-full left-0 w-full mb-2 bg-white rounded-lg shadow-xl border border-stone-200 text-stone-800 z-50 overflow-hidden">
+               <button onClick={signOut} className="w-full text-left px-4 py-3 hover:bg-red-50 hover:text-red-600 flex items-center gap-2 transition-colors">
+                  <LogOut size={16} />
+                  <span className="text-sm font-bold">Sign Out</span>
+               </button>
             </div>
           )}
         </div>

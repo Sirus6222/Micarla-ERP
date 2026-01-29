@@ -1,12 +1,14 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
 import { User, Role } from '../types';
-import { UserService } from '../services/store';
 
 interface AuthContextType {
   user: User | null;
-  switchUser: (userId: string) => Promise<void>;
-  availableUsers: User[];
+  loading: boolean;
+  signIn: (email: string, password: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string, name: string, role: Role) => Promise<{ error: any }>;
+  signOut: () => Promise<void>;
   hasRole: (roles: Role[]) => boolean;
 }
 
@@ -14,22 +16,81 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [availableUsers, setAvailableUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchProfile = async (userId: string, email: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching profile:', error);
+        return null;
+      }
+
+      if (data) {
+        const appUser: User = {
+          id: data.id,
+          name: data.name || email.split('@')[0],
+          role: data.role as Role,
+          avatarInitials: data.avatarInitials || email.substring(0, 2).toUpperCase()
+        };
+        setUser(appUser);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   useEffect(() => {
-    const loadUsers = async () => {
-      const users = await UserService.getAll();
-      setAvailableUsers(users);
-      if (users.length > 0 && !user) {
-        setUser(users[0]); // Default to first user (Rep)
+    // 1. Check active session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        fetchProfile(session.user.id, session.user.email!);
       }
-    };
-    loadUsers();
+      setLoading(false);
+    });
+
+    // 2. Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        fetchProfile(session.user.id, session.user.email!);
+      } else {
+        setUser(null);
+        setLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const switchUser = async (userId: string) => {
-    const found = availableUsers.find(u => u.id === userId);
-    if (found) setUser(found);
+  const signIn = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    return { error };
+  };
+
+  const signUp = async (email: string, password: string, name: string, role: Role) => {
+    // We pass metadata so the database trigger can populate the profile table
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name,
+          role,
+          avatarInitials: name.substring(0, 2).toUpperCase()
+        }
+      }
+    });
+    return { error };
+  };
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
   };
 
   const hasRole = (roles: Role[]) => {
@@ -38,7 +99,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, switchUser, availableUsers, hasRole }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut, hasRole }}>
       {children}
     </AuthContext.Provider>
   );

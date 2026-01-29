@@ -11,24 +11,37 @@ import { CustomerDetail } from './pages/CustomerDetail';
 import { ProductionBoard } from './pages/ProductionBoard';
 import { FinanceDashboard } from './pages/FinanceDashboard';
 import { Procurement } from './pages/Procurement';
+import { Login } from './pages/Login';
+import { useAuth } from './contexts/AuthContext';
+
+// Wrapper for protected routes
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading } = useAuth();
+  
+  if (loading) return <div className="h-screen flex items-center justify-center bg-stone-50 text-stone-500">Initializing...</div>;
+  if (!user) return <Navigate to="/login" replace />;
+  
+  return <Layout>{children}</Layout>;
+};
 
 function App() {
   return (
     <Router>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/quotes" element={<QuoteList />} />
-          <Route path="/quotes/:id" element={<QuoteBuilder />} />
-          <Route path="/products" element={<ProductManager />} />
-          <Route path="/customers" element={<CustomerList />} />
-          <Route path="/customers/:id" element={<CustomerDetail />} />
-          <Route path="/production" element={<ProductionBoard />} />
-          <Route path="/finance" element={<FinanceDashboard />} />
-          <Route path="/procurement" element={<Procurement />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Layout>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        
+        <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/quotes" element={<ProtectedRoute><QuoteList /></ProtectedRoute>} />
+        <Route path="/quotes/:id" element={<ProtectedRoute><QuoteBuilder /></ProtectedRoute>} />
+        <Route path="/products" element={<ProtectedRoute><ProductManager /></ProtectedRoute>} />
+        <Route path="/customers" element={<ProtectedRoute><CustomerList /></ProtectedRoute>} />
+        <Route path="/customers/:id" element={<ProtectedRoute><CustomerDetail /></ProtectedRoute>} />
+        <Route path="/production" element={<ProtectedRoute><ProductionBoard /></ProtectedRoute>} />
+        <Route path="/finance" element={<ProtectedRoute><FinanceDashboard /></ProtectedRoute>} />
+        <Route path="/procurement" element={<ProtectedRoute><Procurement /></ProtectedRoute>} />
+        
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </Router>
   );
 }
