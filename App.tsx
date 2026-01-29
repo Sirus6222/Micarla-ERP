@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
@@ -17,7 +16,7 @@ import { Login } from './pages/Login';
 import { useAuth } from './contexts/AuthContext';
 
 // Wrapper for protected routes
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
   
   if (loading) return <div className="h-screen flex items-center justify-center bg-stone-50 text-stone-500">Initializing...</div>;

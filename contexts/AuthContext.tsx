@@ -18,6 +18,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Helper to safely parse user data or create fallback
+  const parseUser = (id: string, email: string, data: any): User => {
+      const safeEmail = email || '';
+      return {
+          id: id,
+          name: data?.name || safeEmail.split('@')[0] || 'User',
+          role: (data?.role as Role) || Role.SALES_REP,
+          avatarInitials: data?.avatarInitials || safeEmail.substring(0, 2).toUpperCase() || 'U'
+      };
+  };
+
   const fetchProfile = async (userId: string, email: string) => {
     try {
       const { data, error } = await supabase
@@ -25,46 +36,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .select('*')
         .eq('id', userId)
         .single();
-
-      if (data) {
-        const appUser: User = {
-          id: data.id,
-          name: data.name || email.split('@')[0],
-          role: data.role as Role,
-          avatarInitials: data.avatarInitials || email.substring(0, 2).toUpperCase()
-        };
-        setUser(appUser);
-        return appUser;
-      } else {
-        // Fallback: If profile row doesn't exist yet, create a temporary user object
-        // This prevents the app from being inaccessible if the DB trigger fails
-        const fallbackUser: User = {
-            id: userId,
-            name: email.split('@')[0],
-            role: Role.SALES_REP,
-            avatarInitials: email.substring(0, 2).toUpperCase()
-        };
-        setUser(fallbackUser);
-        return fallbackUser;
-      }
+      
+      // If we have data, use it. If not (error or missing), fallback to default.
+      // This ensures we always return a valid User object if the session exists.
+      const appUser = parseUser(userId, email, data);
+      setUser(appUser);
+      return appUser;
     } catch (err) {
-      console.error("Profile fetch error:", err);
-      // Even on error, if we have a session, we should probably allow access with defaults,
-      // but strictly speaking we need the role. 
-      // We'll leave it null here implies "not fully loaded" or "error", 
-      // but let's try to recover if it's just a data missing issue.
+      console.warn("Profile fetch failed, using fallback:", err);
+      // Fallback
+      const fallbackUser = parseUser(userId, email, null);
+      setUser(fallbackUser);
+      return fallbackUser;
     }
-    return null;
   };
 
   useEffect(() => {
     let mounted = true;
 
+    // Safety timeout to prevent infinite loading state
+    const timeoutId = setTimeout(() => {
+        if (mounted) setLoading(s => {
+            if (s) console.warn("Auth initialization timed out, forcing completion");
+            return false;
+        });
+    }, 5000);
+
     const initializeAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
+        
         if (session?.user) {
-           await fetchProfile(session.user.id, session.user.email!);
+           await fetchProfile(session.user.id, session.user.email || '');
+        } else {
+           if (mounted) setUser(null);
         }
       } catch (error) {
         console.error("Auth initialization failed:", error);
@@ -77,25 +82,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
-        // We only trigger fetch if user state isn't already set to this user
-        // This reduces redundant fetches, though signIn manual call handles the primary flow
-        setUser(prev => {
-            if (prev?.id === session.user.id) return prev;
-            return prev;
-        });
-        
-        if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
-             await fetchProfile(session.user.id, session.user.email!);
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+             await fetchProfile(session.user.id, session.user.email || '');
         }
-      } else {
+      } else if (event === 'SIGNED_OUT') {
         if (mounted) {
           setUser(null);
+          // Only stop loading if we were loading (though usually handled by init)
+          setLoading(false); 
         }
       }
     });
 
     return () => {
       mounted = false;
+      clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
   }, []);
@@ -103,9 +104,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (!error && data.user) {
-        // Critical: Wait for profile to load before returning
-        // This ensures the ProtectedRoute sees the authenticated user immediately
-        await fetchProfile(data.user.id, data.user.email!);
+        await fetchProfile(data.user.id, data.user.email || '');
     }
     return { error };
   };
@@ -124,7 +123,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
     
     if (!error && data.user) {
-        await fetchProfile(data.user.id, data.user.email!);
+        await fetchProfile(data.user.id, data.user.email || '');
     }
     return { error };
   };
