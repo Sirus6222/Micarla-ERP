@@ -39,32 +39,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           avatarInitials: data.avatarInitials || email.substring(0, 2).toUpperCase()
         };
         setUser(appUser);
+        return appUser;
       }
     } catch (err) {
       console.error(err);
     }
+    return null;
   };
 
   useEffect(() => {
-    // 1. Check active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        fetchProfile(session.user.id, session.user.email!);
+    let mounted = true;
+
+    const initializeAuth = async () => {
+      try {
+        // 1. Check active session
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user) {
+           await fetchProfile(session.user.id, session.user.email!);
+        }
+      } catch (error) {
+        console.error("Auth initialization failed:", error);
+      } finally {
+        if (mounted) setLoading(false);
       }
-      setLoading(false);
-    });
+    };
+
+    initializeAuth();
 
     // 2. Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
-        fetchProfile(session.user.id, session.user.email!);
+        // On sign in or token refresh, ensure profile is loaded
+        await fetchProfile(session.user.id, session.user.email!);
       } else {
-        setUser(null);
-        setLoading(false);
+        if (mounted) {
+          setUser(null);
+          // Only set loading false if we aren't in the initial load phase (which is handled by initializeAuth)
+        }
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {

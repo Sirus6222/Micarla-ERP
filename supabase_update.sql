@@ -38,7 +38,26 @@ create policy "Public Delete QuoteItems" on "quote_items" for delete using (true
 -- 4. Update Invoices Table for Physical Invoice Copy
 alter table invoices add column if not exists "physicalCopyImage" text;
 
--- 5. OPTIONAL: Data Migration
+-- 5. Update Profiles Policies for Admin Management (User Management Page)
+-- Ensure RLS is enabled
+alter table public.profiles enable row level security;
+
+-- Drop existing policies to prevent conflicts if re-running
+drop policy if exists "Admins can update any profile" on profiles;
+drop policy if exists "Admins can delete any profile" on profiles;
+
+-- Create Admin policies
+create policy "Admins can update any profile" on profiles
+  for update using (
+    exists (select 1 from profiles where id = auth.uid() and role = 'Admin')
+  );
+
+create policy "Admins can delete any profile" on profiles
+  for delete using (
+    exists (select 1 from profiles where id = auth.uid() and role = 'Admin')
+  );
+
+-- 6. OPTIONAL: Data Migration
 -- If you have existing quotes with items in a JSONB 'items' column, run this block to migrate them.
 -- If your 'quotes' table does not have an 'items' column, this part will be skipped or error out safely.
 
