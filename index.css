@@ -1,6 +1,0 @@
-
-/* Tailwind is loaded via CDN in index.html for this environment */
-body {
-  background-color: #f8fafc; /* stone-50 fallback */
-  color: #1e293b; /* stone-800 fallback */
-}
