@@ -59,15 +59,18 @@ export const CustomerDetail: React.FC = () => {
   const activeOrders = quotes.filter(q => 
     q.status !== QuoteStatus.DRAFT && 
     q.status !== QuoteStatus.SUBMITTED && 
-    q.status !== QuoteStatus.COMPLETED
+    q.status !== QuoteStatus.COMPLETED &&
+    q.status !== QuoteStatus.CANCELLED
   );
   
-  const totalSpend = quotes
-    .filter(q => q.status === QuoteStatus.COMPLETED)
-    .reduce((sum, q) => sum + q.grandTotal, 0);
+  // Revised Financial Stats (Source of Truth: Invoices)
+  // Lifetime Value = Total Amount Paid on Invoices (Cash collected)
+  const lifetimeValue = invoices.reduce((sum, i) => sum + i.amountPaid, 0);
 
-  // Financial Stats
+  // Total Debt = Total Balance Due on Invoices
   const totalDebt = invoices.reduce((sum, i) => sum + i.balanceDue, 0);
+  
+  // Overdue Logic
   const overdueInvoices = invoices.filter(i => i.status === InvoiceStatus.OVERDUE || (i.status !== InvoiceStatus.PAID && new Date(i.dueDate) < new Date()));
   const totalOverdue = overdueInvoices.reduce((sum, i) => sum + i.balanceDue, 0);
   
@@ -203,8 +206,8 @@ export const CustomerDetail: React.FC = () => {
                 )}
 
                 <div className="mt-4 pt-4 border-t border-stone-100">
-                     <p className="text-xs text-stone-400 uppercase mb-1">Lifetime Value</p>
-                     <p className="text-lg font-bold text-primary-700">ETB {formatCurrency(totalSpend)}</p>
+                     <p className="text-xs text-stone-400 uppercase mb-1">Lifetime Value (Paid)</p>
+                     <p className="text-lg font-bold text-primary-700">ETB {formatCurrency(lifetimeValue)}</p>
                 </div>
             </div>
         </div>

@@ -39,6 +39,9 @@ export const QuoteBuilder: React.FC = () => {
 
   const isEditable = () => {
     if (!quote || !user) return false;
+    // Master access: Admin can edit anything at any time
+    if (user.role === Role.ADMIN) return true;
+    
     if (user.role === Role.FINANCE || user.role === Role.FACTORY) return false;
     if (user.role === Role.SALES_REP) {
       return quote.status === QuoteStatus.DRAFT || quote.status === QuoteStatus.REJECTED;
@@ -415,7 +418,7 @@ export const QuoteBuilder: React.FC = () => {
                 placeholder="Required for approvals/rejections..." 
               />
               <div className="flex flex-wrap gap-2 justify-end">
-                {user?.role === Role.MANAGER && quote.status === QuoteStatus.SUBMITTED && (
+                {(user?.role === Role.MANAGER || user?.role === Role.ADMIN) && quote.status === QuoteStatus.SUBMITTED && (
                   <>
                     <button onClick={() => handleWorkflow('REJECT')} className="px-5 py-2.5 border border-red-200 text-red-600 font-bold rounded-lg bg-red-50 hover:bg-red-100 transition-colors shadow-sm">Reject Quote</button>
                     <button onClick={() => handleWorkflow('APPROVE')} className="px-8 py-2.5 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition-all shadow-md active:scale-95">Approve Quote</button>
@@ -459,7 +462,7 @@ export const QuoteBuilder: React.FC = () => {
               </select>
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">{t('date')}</label>
+              <label className="block text-sm font-bold text-stone-400 uppercase tracking-widest mb-1">{t('date')}</label>
               <input 
                 type="date" 
                 value={quote.date} 

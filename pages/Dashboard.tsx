@@ -475,10 +475,30 @@ export const Dashboard: React.FC = () => {
         </button>
       </div>
 
-      {user.role === Role.SALES_REP && renderSalesView()}
-      {user.role === Role.MANAGER && renderManagerView()}
-      {user.role === Role.FINANCE && renderFinanceView()}
-      {user.role === Role.FACTORY && renderFactoryView()}
+      {(user.role === Role.SALES_REP || user.role === Role.ADMIN) && (
+        <div className={user.role === Role.ADMIN ? "mb-12 border-b border-stone-200 pb-8" : ""}>
+          {user.role === Role.ADMIN && <h3 className="text-sm font-bold text-stone-400 uppercase tracking-widest mb-4">Sales View</h3>}
+          {renderSalesView()}
+        </div>
+      )}
+      {(user.role === Role.MANAGER || user.role === Role.ADMIN) && (
+        <div className={user.role === Role.ADMIN ? "mb-12 border-b border-stone-200 pb-8" : ""}>
+           {user.role === Role.ADMIN && <h3 className="text-sm font-bold text-stone-400 uppercase tracking-widest mb-4">Manager View</h3>}
+           {renderManagerView()}
+        </div>
+      )}
+      {(user.role === Role.FINANCE || user.role === Role.ADMIN) && (
+        <div className={user.role === Role.ADMIN ? "mb-12 border-b border-stone-200 pb-8" : ""}>
+           {user.role === Role.ADMIN && <h3 className="text-sm font-bold text-stone-400 uppercase tracking-widest mb-4">Finance View</h3>}
+           {renderFinanceView()}
+        </div>
+      )}
+      {(user.role === Role.FACTORY || user.role === Role.ADMIN) && (
+        <div className={user.role === Role.ADMIN ? "" : ""}>
+           {user.role === Role.ADMIN && <h3 className="text-sm font-bold text-stone-400 uppercase tracking-widest mb-4">Factory View</h3>}
+           {renderFactoryView()}
+        </div>
+      )}
     </div>
   );
 };

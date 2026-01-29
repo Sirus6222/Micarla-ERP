@@ -78,7 +78,7 @@ export const ProductionBoard: React.FC = () => {
       return (quote.grandTotal - totalPaid) < 1;
   };
 
-  const isFactoryUser = user?.role === Role.FACTORY;
+  const isFactoryUser = user?.role === Role.FACTORY || user?.role === Role.ADMIN;
 
   const columns = [
     { 

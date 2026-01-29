@@ -1,25 +1,48 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { CustomerService } from '../services/store';
-import { Customer } from '../types';
+import { CustomerService, FinanceService } from '../services/store';
+import { Customer, Invoice, InvoiceStatus } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Search, Users, Phone, MapPin, Building } from 'lucide-react';
+import { Plus, Search, Users, Phone, MapPin, Building, AlertTriangle, Wallet } from 'lucide-react';
 
 export const CustomerList: React.FC = () => {
   const { user } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customerFinancials, setCustomerFinancials] = useState<Record<string, { totalDebt: number, overdueAmount: number }>>({});
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [newCust, setNewCust] = useState<Partial<Customer>>({});
+  const [loading, setLoading] = useState(true);
 
-  const loadCustomers = async () => {
-      const all = await CustomerService.getAll();
-      setCustomers(all);
+  const loadData = async () => {
+      setLoading(true);
+      const [allCustomers, allInvoices] = await Promise.all([
+          CustomerService.getAll(),
+          FinanceService.getAllInvoices()
+      ]);
+      setCustomers(allCustomers);
+
+      // Calculate financials per customer
+      const financials: Record<string, { totalDebt: number, overdueAmount: number }> = {};
+      
+      allCustomers.forEach(c => {
+          const custInvoices = allInvoices.filter(i => i.customerId === c.id);
+          const totalDebt = custInvoices.reduce((sum, i) => sum + i.balanceDue, 0);
+          
+          const overdueAmount = custInvoices
+            .filter(i => i.status !== InvoiceStatus.PAID && new Date(i.dueDate) < new Date())
+            .reduce((sum, i) => sum + i.balanceDue, 0);
+
+          financials[c.id] = { totalDebt, overdueAmount };
+      });
+      
+      setCustomerFinancials(financials);
+      setLoading(false);
   }
 
   useEffect(() => {
-    loadCustomers();
+    loadData();
   }, []);
 
   const filtered = customers.filter(c => 
@@ -32,17 +55,19 @@ export const CustomerList: React.FC = () => {
       if(!newCust.name || !newCust.phone || !user) return;
       // Pass user as required by CustomerService.add for audit logging
       await CustomerService.add(newCust as Omit<Customer, 'id'>, user);
-      await loadCustomers();
+      await loadData();
       setShowAdd(false);
       setNewCust({});
   }
+
+  const formatCurrency = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <div className="flex justify-between items-center mb-8">
         <div>
             <h2 className="text-3xl font-bold text-stone-900">Customers</h2>
-            <p className="text-stone-500 mt-1">Manage client contact details and order history.</p>
+            <p className="text-stone-500 mt-1">Manage client contact details and financial status.</p>
         </div>
         <button onClick={() => setShowAdd(true)} className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm transition-colors">
           <Plus size={20} />
@@ -82,33 +107,56 @@ export const CustomerList: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6 bg-stone-50/50">
-            {filtered.map(c => (
-                <Link key={c.id} to={`/customers/${c.id}`} className="bg-white p-6 rounded-xl border border-stone-200 hover:border-primary-500 hover:shadow-md transition-all group">
-                    <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center text-stone-500 group-hover:bg-primary-50 group-hover:text-primary-600 transition-colors">
-                            <Users size={20} />
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-stone-900">{c.name}</h3>
-                            {c.companyName && <p className="text-xs text-stone-500 font-medium uppercase tracking-wide">{c.companyName}</p>}
-                        </div>
-                    </div>
-                    <div className="space-y-2 text-sm text-stone-600">
-                        <div className="flex items-center gap-2">
-                            <Phone size={14} className="text-stone-400" />
-                            {c.phone}
-                        </div>
-                        {c.address && (
-                            <div className="flex items-start gap-2">
-                                <MapPin size={14} className="text-stone-400 mt-0.5" />
-                                <span className="flex-1">{c.address}</span>
+        {loading ? (
+             <div className="p-12 text-center text-stone-400">Loading directory...</div>
+        ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6 bg-stone-50/50">
+                {filtered.map(c => {
+                    const financials = customerFinancials[c.id] || { totalDebt: 0, overdueAmount: 0 };
+                    const hasOverdue = financials.overdueAmount > 0;
+                    
+                    return (
+                        <Link key={c.id} to={`/customers/${c.id}`} className={`bg-white p-6 rounded-xl border hover:shadow-md transition-all group ${hasOverdue ? 'border-red-200 hover:border-red-400' : 'border-stone-200 hover:border-primary-500'}`}>
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${hasOverdue ? 'bg-red-50 text-red-600' : 'bg-stone-100 text-stone-500 group-hover:bg-primary-50 group-hover:text-primary-600'}`}>
+                                    <Users size={20} />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-stone-900 truncate">{c.name}</h3>
+                                    {c.companyName && <p className="text-xs text-stone-500 font-medium uppercase tracking-wide truncate">{c.companyName}</p>}
+                                </div>
                             </div>
-                        )}
-                    </div>
-                </Link>
-            ))}
-        </div>
+                            
+                            <div className="grid grid-cols-2 gap-2 mb-4">
+                                <div className="bg-stone-50 p-2 rounded border border-stone-100">
+                                    <p className="text-[10px] uppercase font-bold text-stone-400 mb-0.5">Total Debt</p>
+                                    <p className="text-sm font-bold text-stone-800">ETB {formatCurrency(financials.totalDebt)}</p>
+                                </div>
+                                <div className={`p-2 rounded border ${hasOverdue ? 'bg-red-50 border-red-100' : 'bg-stone-50 border-stone-100'}`}>
+                                    <p className={`text-[10px] uppercase font-bold mb-0.5 ${hasOverdue ? 'text-red-500' : 'text-stone-400'}`}>Overdue</p>
+                                    <p className={`text-sm font-bold ${hasOverdue ? 'text-red-700' : 'text-stone-400'}`}>
+                                        {hasOverdue ? `ETB ${formatCurrency(financials.overdueAmount)}` : '-'}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-1 text-xs text-stone-500">
+                                <div className="flex items-center gap-2">
+                                    <Phone size={12} className="text-stone-400" />
+                                    {c.phone}
+                                </div>
+                                {c.address && (
+                                    <div className="flex items-center gap-2 truncate">
+                                        <MapPin size={12} className="text-stone-400" />
+                                        <span>{c.address}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </Link>
+                    )
+                })}
+            </div>
+        )}
       </div>
     </div>
   );

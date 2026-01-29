@@ -50,7 +50,7 @@ export const AuditService = {
 };
 
 export const UserService = {
-  getAll: async (): Promise<User[]> => {
+  getAll: async (): Promise<(User & { email?: string })[]> => {
     // Fetches from the public profiles table which mirrors auth.users
     const { data, error } = await supabase.from('profiles').select('*');
     if(error || !data) return [];
@@ -59,7 +59,8 @@ export const UserService = {
       id: p.id,
       name: p.name || 'Unknown',
       role: p.role as Role,
-      avatarInitials: p.avatarInitials || 'U'
+      avatarInitials: p.avatarInitials || 'U',
+      email: p.email
     }));
   },
   getById: async (id: string): Promise<User | undefined> => {
@@ -71,6 +72,20 @@ export const UserService = {
       role: data.role as Role,
       avatarInitials: data.avatarInitials || 'U'
     };
+  },
+  update: async (user: Partial<User>): Promise<void> => {
+    if (!user.id) return;
+    const { error } = await supabase.from('profiles').update({
+      name: user.name,
+      role: user.role,
+      avatarInitials: user.avatarInitials
+    }).eq('id', user.id);
+    if (error) throw error;
+  },
+  delete: async (id: string): Promise<void> => {
+     // Deleting the profile effectively removes access for the user in the app context
+     const { error } = await supabase.from('profiles').delete().eq('id', id);
+     if (error) throw error;
   }
 };
 
@@ -209,9 +224,14 @@ export const QuoteService = {
 
 export const FinanceService = {
   getAllInvoices: async (): Promise<Invoice[]> => fetchAll('invoices'),
+  getInvoiceById: async (id: string): Promise<Invoice | undefined> => fetchById('invoices', id),
   getInvoicesByQuote: async (quoteId: string): Promise<Invoice[]> => {
     const { data } = await supabase.from('invoices').select('*').eq('quoteId', quoteId);
     return data || [];
+  },
+  getPaymentsByInvoiceId: async (invoiceId: string): Promise<Payment[]> => {
+     const { data } = await supabase.from('payments').select('*').eq('invoiceId', invoiceId).order('date', { ascending: false });
+     return data || [];
   },
   createInvoice: async (invoice: Invoice, user: User): Promise<void> => {
     await upsert('invoices', invoice);

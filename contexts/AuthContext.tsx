@@ -95,6 +95,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const hasRole = (roles: Role[]) => {
     if (!user) return false;
+    // Master Override: Admin has access to everything
+    if (user.role === Role.ADMIN) return true;
     return roles.includes(user.role);
   };
 

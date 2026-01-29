@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { FinanceService, QuoteService } from '../services/store';
 import { Invoice, Quote, QuoteStatus, InvoiceType, InvoiceStatus, Payment, PaymentMethod, Role } from '../types';
-import { Plus, DollarSign, FileText, CheckCircle, Wallet, CreditCard, AlertTriangle, X, Calendar, Clock, Paperclip, Camera, Download } from 'lucide-react';
+import { Plus, DollarSign, FileText, CheckCircle, Wallet, CreditCard, AlertTriangle, X, Calendar, Clock, Paperclip, Camera, Download, Eye } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -27,10 +27,6 @@ export const FinanceDashboard: React.FC = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [paymentForm, setPaymentForm] = useState({ amount: 0, method: PaymentMethod.BANK_TRANSFER, ref: '' });
-
-  // Physical Invoice Upload Modal State
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [uploadInvoice, setUploadInvoice] = useState<Invoice | null>(null);
 
   const loadData = async () => {
       const allQuotes = await QuoteService.getAll();
@@ -134,26 +130,6 @@ export const FinanceDashboard: React.FC = () => {
       loadData();
   };
 
-  const openUploadModal = (invoice: Invoice) => {
-    setUploadInvoice(invoice);
-    setShowUploadModal(true);
-  };
-
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file && uploadInvoice && user) {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = async () => {
-            const base64Data = reader.result as string;
-            await FinanceService.attachInvoiceImage(uploadInvoice, base64Data, user);
-            // Refresh local state without full reload
-            setInvoices(prev => prev.map(inv => inv.id === uploadInvoice.id ? { ...inv, physicalCopyImage: base64Data } : inv));
-            setUploadInvoice({ ...uploadInvoice, physicalCopyImage: base64Data });
-        };
-    }
-  };
-
   const getOverdueDays = (invoice: Invoice) => {
       if(invoice.status === InvoiceStatus.PAID) return 0;
       const due = new Date(invoice.dueDate);
@@ -248,14 +224,8 @@ export const FinanceDashboard: React.FC = () => {
                                  </div>
                                  <div className="flex-1">
                                      <div className="flex items-center gap-2">
-                                        <div className="font-bold text-stone-800 text-sm">{inv.number}</div>
-                                        <button 
-                                            onClick={() => openUploadModal(inv)}
-                                            className={`p-1 rounded hover:bg-stone-200 ${inv.physicalCopyImage ? 'text-primary-600' : 'text-stone-300'}`}
-                                            title="View/Upload Physical Copy"
-                                        >
-                                            <Paperclip size={14} />
-                                        </button>
+                                        <Link to={`/invoices/${inv.id}`} className="font-bold text-stone-800 text-sm hover:text-primary-600 hover:underline">{inv.number}</Link>
+                                        {inv.physicalCopyImage && <Paperclip size={12} className="text-stone-400" />}
                                      </div>
                                      <div className="text-[10px] text-stone-500 font-medium uppercase tracking-wider">{inv.customerName} • {inv.type}</div>
                                  </div>
@@ -270,11 +240,17 @@ export const FinanceDashboard: React.FC = () => {
                                  )}
                              </div>
                           </div>
-                          {inv.status !== InvoiceStatus.PAID && (
-                              <button onClick={() => openPaymentModal(inv)} className="w-full mt-2 py-2 text-xs font-bold text-white bg-stone-800 rounded-lg hover:bg-stone-900 flex items-center justify-center gap-2 md:opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <CreditCard size={14} /> Record Payment
-                              </button>
-                          )}
+                          
+                          <div className="flex gap-2 mt-2">
+                              {inv.status !== InvoiceStatus.PAID && (
+                                  <button onClick={() => openPaymentModal(inv)} className="flex-1 py-2 text-xs font-bold text-white bg-stone-800 rounded-lg hover:bg-stone-900 flex items-center justify-center gap-2 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <CreditCard size={14} /> Record Payment
+                                  </button>
+                              )}
+                               <Link to={`/invoices/${inv.id}`} className="px-3 py-2 text-xs font-bold text-stone-600 border border-stone-200 rounded-lg hover:bg-stone-50 flex items-center justify-center gap-2 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Eye size={14} /> View
+                              </Link>
+                          </div>
                       </div>
                   )})}
               </div>
@@ -391,52 +367,6 @@ export const FinanceDashboard: React.FC = () => {
                       </button>
                   </div>
               </div>
-          </div>
-      )}
-
-      {/* Physical Invoice Modal (Upload/View) */}
-      {showUploadModal && uploadInvoice && (
-          <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-            <div className="bg-white rounded-xl w-full max-w-2xl shadow-2xl animate-in zoom-in duration-150 flex flex-col max-h-[90vh]">
-                <div className="p-4 border-b border-stone-200 flex justify-between items-center bg-stone-50 rounded-t-xl">
-                    <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-stone-800">Physical Invoice Copy</h3>
-                        <span className="bg-stone-200 text-stone-600 px-2 py-0.5 rounded text-xs font-mono">{uploadInvoice.number}</span>
-                    </div>
-                    <button onClick={() => setShowUploadModal(false)} className="hover:bg-stone-200 p-1 rounded-full"><X size={20} className="text-stone-400" /></button>
-                </div>
-                
-                <div className="flex-1 overflow-y-auto p-6 bg-stone-100/50">
-                    {uploadInvoice.physicalCopyImage ? (
-                        <div className="flex flex-col items-center">
-                            <img src={uploadInvoice.physicalCopyImage} alt="Invoice Scan" className="max-w-full rounded shadow-lg border border-stone-200 mb-4 max-h-[60vh] object-contain" />
-                            <a href={uploadInvoice.physicalCopyImage} download={`Invoice-${uploadInvoice.number}.png`} className="text-xs font-bold text-primary-600 hover:underline flex items-center gap-1">
-                                <Download size={14} /> Download Image
-                            </a>
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed border-stone-300 rounded-xl bg-stone-50">
-                            <FileText size={48} className="text-stone-300 mb-4" />
-                            <p className="text-stone-500 font-medium mb-2">No physical copy attached</p>
-                            <p className="text-xs text-stone-400">Upload a scan or take a photo of the paper invoice.</p>
-                        </div>
-                    )}
-                </div>
-
-                <div className="p-4 border-t border-stone-200 bg-white rounded-b-xl">
-                    <label className="w-full cursor-pointer bg-stone-800 text-white font-bold py-3 rounded-xl hover:bg-stone-900 transition-colors flex items-center justify-center gap-2">
-                        <Camera size={18} />
-                        {uploadInvoice.physicalCopyImage ? 'Replace Image' : 'Upload / Take Photo'}
-                        <input 
-                            type="file" 
-                            accept="image/*" 
-                            capture="environment"
-                            className="hidden" 
-                            onChange={handleFileUpload}
-                        />
-                    </label>
-                </div>
-            </div>
           </div>
       )}
     </div>
