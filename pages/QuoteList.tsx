@@ -56,7 +56,7 @@ export const QuoteList: React.FC = () => {
               </div>
               
               <div className="text-right">
-                <div className="text-xl font-bold text-stone-900">ETB {q.grandTotal.toFixed(2)}</div>
+                <div className="text-xl font-bold text-stone-900">ETB {(q.grandTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                 <div className="text-xs font-medium uppercase tracking-wide text-stone-400 mt-1">{q.status}</div>
               </div>
             </div>

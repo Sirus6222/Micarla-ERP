@@ -163,6 +163,7 @@ export interface Invoice {
   amountPaid: number;
   balanceDue: number;
   notes?: string;
+  physicalCopyImage?: string; // Base64 or URL of the physical invoice scan
 }
 
 export interface Payment {

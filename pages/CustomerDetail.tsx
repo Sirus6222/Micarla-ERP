@@ -80,6 +80,8 @@ export const CustomerDetail: React.FC = () => {
     ? Math.floor((new Date().getTime() - new Date(oldestDue).getTime()) / (1000 * 3600 * 24)) 
     : 0;
 
+  const formatCurrency = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <Link to="/customers" className="flex items-center gap-2 text-stone-500 hover:text-stone-800 mb-6">
@@ -177,13 +179,13 @@ export const CustomerDetail: React.FC = () => {
                     <div>
                          <p className="text-xs text-stone-400 uppercase">Total Debt</p>
                          <p className={`text-xl font-bold ${totalDebt > 0 ? 'text-stone-800' : 'text-green-600'}`}>
-                             ETB {totalDebt.toLocaleString()}
+                             ETB {formatCurrency(totalDebt)}
                          </p>
                     </div>
                     <div>
                          <p className="text-xs text-stone-400 uppercase">Overdue</p>
                          <p className={`text-xl font-bold ${totalOverdue > 0 ? 'text-red-600' : 'text-stone-400'}`}>
-                             ETB {totalOverdue.toLocaleString()}
+                             ETB {formatCurrency(totalOverdue)}
                          </p>
                     </div>
                 </div>
@@ -202,7 +204,7 @@ export const CustomerDetail: React.FC = () => {
 
                 <div className="mt-4 pt-4 border-t border-stone-100">
                      <p className="text-xs text-stone-400 uppercase mb-1">Lifetime Value</p>
-                     <p className="text-lg font-bold text-primary-700">ETB {totalSpend.toLocaleString()}</p>
+                     <p className="text-lg font-bold text-primary-700">ETB {formatCurrency(totalSpend)}</p>
                 </div>
             </div>
         </div>
@@ -236,9 +238,9 @@ export const CustomerDetail: React.FC = () => {
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <div className="font-bold text-stone-900">ETB {q.grandTotal.toLocaleString()}</div>
+                                    <div className="font-bold text-stone-900">ETB {formatCurrency(q.grandTotal)}</div>
                                     {q.depositAmount && (
-                                        <div className="text-xs text-green-600">Dep: ETB {q.depositAmount.toLocaleString()}</div>
+                                        <div className="text-xs text-green-600">Dep: ETB {formatCurrency(q.depositAmount)}</div>
                                     )}
                                 </div>
                             </Link>
@@ -279,7 +281,7 @@ export const CustomerDetail: React.FC = () => {
                                         {q.status}
                                     </span>
                                 </td>
-                                <td className="px-6 py-4 text-right font-medium">ETB {q.grandTotal.toLocaleString()}</td>
+                                <td className="px-6 py-4 text-right font-medium">ETB {formatCurrency(q.grandTotal)}</td>
                             </tr>
                         ))}
                     </tbody>

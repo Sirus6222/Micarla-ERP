@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { FinanceService, QuoteService } from '../services/store';
 import { Invoice, Quote, QuoteStatus, InvoiceType, InvoiceStatus, Payment, PaymentMethod, Role } from '../types';
-import { Plus, DollarSign, FileText, CheckCircle, Wallet, CreditCard, AlertTriangle, X, Calendar, Clock } from 'lucide-react';
+import { Plus, DollarSign, FileText, CheckCircle, Wallet, CreditCard, AlertTriangle, X, Calendar, Clock, Paperclip, Camera, Download } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -14,18 +14,23 @@ export const FinanceDashboard: React.FC = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Invoice Creation Modal State
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Quote | null>(null);
-  
   const [invoiceForm, setInvoiceForm] = useState<{
       type: InvoiceType, 
       percentage: number,
       paymentTerms: number 
   }>({ type: InvoiceType.DEPOSIT, percentage: 50, paymentTerms: 0 });
   
+  // Payment Modal State
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [paymentForm, setPaymentForm] = useState({ amount: 0, method: PaymentMethod.BANK_TRANSFER, ref: '' });
+
+  // Physical Invoice Upload Modal State
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadInvoice, setUploadInvoice] = useState<Invoice | null>(null);
 
   const loadData = async () => {
       const allQuotes = await QuoteService.getAll();
@@ -66,6 +71,9 @@ export const FinanceDashboard: React.FC = () => {
           // Final balance calculation: Grand Total - (Sum of all existing Invoices)
           amount = Math.max(0, selectedOrder.grandTotal - invoicedTotalSoFar);
       }
+      
+      // Round to 2 decimal places to avoid floating point errors
+      amount = parseFloat(amount.toFixed(2));
 
       if (amount <= 0.01) {
           alert("This order is already fully invoiced.");
@@ -87,8 +95,8 @@ export const FinanceDashboard: React.FC = () => {
           dueDate: dueDate.toISOString().split('T')[0],
           type: invoiceForm.type,
           status: InvoiceStatus.ISSUED,
-          amount: amount / 1.15,
-          taxAmount: amount - (amount / 1.15),
+          amount: parseFloat((amount / 1.15).toFixed(2)),
+          taxAmount: parseFloat((amount - (amount / 1.15)).toFixed(2)),
           totalAmount: amount,
           amountPaid: 0,
           balanceDue: amount
@@ -102,7 +110,9 @@ export const FinanceDashboard: React.FC = () => {
 
   const openPaymentModal = (invoice: Invoice) => {
       setSelectedInvoice(invoice);
-      setPaymentForm({ amount: invoice.balanceDue, method: PaymentMethod.BANK_TRANSFER, ref: '' });
+      // Initialize with fixed 2 decimal places
+      const amountToPay = parseFloat(invoice.balanceDue.toFixed(2));
+      setPaymentForm({ amount: amountToPay, method: PaymentMethod.BANK_TRANSFER, ref: '' });
       setShowPaymentModal(true);
   };
 
@@ -112,7 +122,7 @@ export const FinanceDashboard: React.FC = () => {
           id: Math.random().toString(36).substr(2, 9),
           invoiceId: selectedInvoice.id,
           quoteId: selectedInvoice.quoteId,
-          amount: Number(paymentForm.amount),
+          amount: parseFloat(Number(paymentForm.amount).toFixed(2)),
           date: new Date().toISOString().split('T')[0],
           method: paymentForm.method,
           reference: paymentForm.ref,
@@ -124,6 +134,26 @@ export const FinanceDashboard: React.FC = () => {
       loadData();
   };
 
+  const openUploadModal = (invoice: Invoice) => {
+    setUploadInvoice(invoice);
+    setShowUploadModal(true);
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && uploadInvoice && user) {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = async () => {
+            const base64Data = reader.result as string;
+            await FinanceService.attachInvoiceImage(uploadInvoice, base64Data, user);
+            // Refresh local state without full reload
+            setInvoices(prev => prev.map(inv => inv.id === uploadInvoice.id ? { ...inv, physicalCopyImage: base64Data } : inv));
+            setUploadInvoice({ ...uploadInvoice, physicalCopyImage: base64Data });
+        };
+    }
+  };
+
   const getOverdueDays = (invoice: Invoice) => {
       if(invoice.status === InvoiceStatus.PAID) return 0;
       const due = new Date(invoice.dueDate);
@@ -131,6 +161,8 @@ export const FinanceDashboard: React.FC = () => {
       const diffTime = now.getTime() - due.getTime();
       return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
   };
+
+  const formatCurrency = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   if (loading) return <div className="p-12 text-center text-stone-500">Loading Ledger...</div>;
 
@@ -146,13 +178,14 @@ export const FinanceDashboard: React.FC = () => {
         </div>
         <div className="text-right">
              <div className="text-2xl font-bold text-stone-800">
-                 ETB {invoices.reduce((acc, i) => acc + i.amountPaid, 0).toLocaleString()}
+                 ETB {formatCurrency(invoices.reduce((acc, i) => acc + i.amountPaid, 0))}
              </div>
              <div className="text-xs text-stone-500 font-bold uppercase">Total Collections</div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Pending Orders Column */}
           <div className="bg-white rounded-xl shadow-sm border border-stone-200 flex flex-col">
               <div className="p-4 border-b border-stone-200 bg-stone-50 flex justify-between items-center">
                   <h3 className="font-bold text-stone-700">Orders Pending Invoice</h3>
@@ -175,7 +208,7 @@ export const FinanceDashboard: React.FC = () => {
                                     <div className="text-[10px] text-stone-500 font-mono">{order.orderNumber}</div>
                                 </div>
                                 <div className="text-right">
-                                    <div className="font-bold text-primary-700 text-sm">ETB {order.grandTotal.toLocaleString()}</div>
+                                    <div className="font-bold text-primary-700 text-sm">ETB {formatCurrency(order.grandTotal)}</div>
                                     <div className="text-[10px] text-stone-400 font-bold uppercase tracking-wider">{Math.round(pctInvoiced)}% Invoiced</div>
                                 </div>
                             </div>
@@ -194,11 +227,12 @@ export const FinanceDashboard: React.FC = () => {
               </div>
           </div>
 
+          {/* Invoices & Payments Column */}
           <div className="bg-white rounded-xl shadow-sm border border-stone-200 flex flex-col">
                <div className="p-4 border-b border-stone-200 bg-stone-50 flex justify-between items-center">
                   <h3 className="font-bold text-stone-700">Payment Center</h3>
                   <div className="flex gap-2 text-[10px] uppercase font-bold text-stone-400">
-                      <span>Total Unpaid: ETB {invoices.reduce((acc, i) => acc + i.balanceDue, 0).toLocaleString()}</span>
+                      <span>Total Unpaid: ETB {formatCurrency(invoices.reduce((acc, i) => acc + i.balanceDue, 0))}</span>
                   </div>
               </div>
               <div className="overflow-y-auto max-h-[500px] divide-y divide-stone-50">
@@ -212,13 +246,22 @@ export const FinanceDashboard: React.FC = () => {
                                  <div className={`p-2 rounded-lg ${inv.status === InvoiceStatus.PAID ? 'bg-green-100 text-green-600' : isOverdue ? 'bg-red-100 text-red-600' : 'bg-blue-50 text-blue-500'}`}>
                                      <FileText size={20} />
                                  </div>
-                                 <div>
-                                     <div className="font-bold text-stone-800 text-sm">{inv.number}</div>
+                                 <div className="flex-1">
+                                     <div className="flex items-center gap-2">
+                                        <div className="font-bold text-stone-800 text-sm">{inv.number}</div>
+                                        <button 
+                                            onClick={() => openUploadModal(inv)}
+                                            className={`p-1 rounded hover:bg-stone-200 ${inv.physicalCopyImage ? 'text-primary-600' : 'text-stone-300'}`}
+                                            title="View/Upload Physical Copy"
+                                        >
+                                            <Paperclip size={14} />
+                                        </button>
+                                     </div>
                                      <div className="text-[10px] text-stone-500 font-medium uppercase tracking-wider">{inv.customerName} • {inv.type}</div>
                                  </div>
                              </div>
                              <div className="text-right">
-                                 <div className="font-bold text-stone-900 text-sm">ETB {inv.totalAmount.toLocaleString()}</div>
+                                 <div className="font-bold text-stone-900 text-sm">ETB {formatCurrency(inv.totalAmount)}</div>
                                  {inv.balanceDue > 0 && (
                                      <div className={`text-[10px] font-bold flex items-center justify-end gap-1 ${isOverdue ? 'text-red-600' : 'text-stone-400'}`}>
                                          {isOverdue && <AlertTriangle size={10} />}
@@ -238,6 +281,7 @@ export const FinanceDashboard: React.FC = () => {
           </div>
       </div>
 
+      {/* Invoice Creation Modal */}
       {showInvoiceModal && selectedOrder && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
               <div className="bg-white rounded-xl w-full max-w-md shadow-2xl animate-in zoom-in duration-150">
@@ -286,7 +330,7 @@ export const FinanceDashboard: React.FC = () => {
                       <div className="p-5 bg-primary-50 rounded-xl text-center border border-primary-100">
                           <span className="text-[10px] uppercase text-primary-600 font-bold block mb-1 tracking-widest">Total to Invoice</span>
                           <span className="text-2xl font-bold text-primary-800 font-mono">
-                              ETB {Math.round(selectedOrder.grandTotal * (invoiceForm.type === InvoiceType.DEPOSIT ? invoiceForm.percentage / 100 : 1)).toLocaleString()} 
+                              ETB {formatCurrency(selectedOrder.grandTotal * (invoiceForm.type === InvoiceType.DEPOSIT ? invoiceForm.percentage / 100 : 1))} 
                           </span>
                       </div>
                       <button onClick={createInvoice} className="w-full py-4 bg-primary-600 text-white font-bold rounded-xl hover:bg-primary-700 shadow-md transition-transform active:scale-95">
@@ -297,6 +341,7 @@ export const FinanceDashboard: React.FC = () => {
           </div>
       )}
 
+      {/* Payment Recording Modal */}
       {showPaymentModal && selectedInvoice && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
               <div className="bg-white rounded-xl w-full max-w-md shadow-2xl animate-in zoom-in duration-150">
@@ -307,12 +352,13 @@ export const FinanceDashboard: React.FC = () => {
                   <div className="p-6 space-y-4">
                       <div className="bg-stone-50 p-3 rounded border border-stone-200 text-xs flex justify-between">
                           <span className="text-stone-500">Invoice: {selectedInvoice.number}</span>
-                          <span className="font-bold text-stone-700">Outstanding: ETB {selectedInvoice.balanceDue.toLocaleString()}</span>
+                          <span className="font-bold text-stone-700">Outstanding: ETB {formatCurrency(selectedInvoice.balanceDue)}</span>
                       </div>
                       <div>
                           <label className="text-xs font-bold text-stone-500 block mb-1 uppercase tracking-wider">Amount Collected (ETB)</label>
                           <input 
                             type="number" 
+                            step="0.01"
                             className="w-full p-3 border border-stone-300 rounded-lg font-mono text-xl font-bold text-green-700"
                             value={paymentForm.amount}
                             onChange={e => setPaymentForm({...paymentForm, amount: Number(e.target.value)})}
@@ -345,6 +391,52 @@ export const FinanceDashboard: React.FC = () => {
                       </button>
                   </div>
               </div>
+          </div>
+      )}
+
+      {/* Physical Invoice Modal (Upload/View) */}
+      {showUploadModal && uploadInvoice && (
+          <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-xl w-full max-w-2xl shadow-2xl animate-in zoom-in duration-150 flex flex-col max-h-[90vh]">
+                <div className="p-4 border-b border-stone-200 flex justify-between items-center bg-stone-50 rounded-t-xl">
+                    <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-stone-800">Physical Invoice Copy</h3>
+                        <span className="bg-stone-200 text-stone-600 px-2 py-0.5 rounded text-xs font-mono">{uploadInvoice.number}</span>
+                    </div>
+                    <button onClick={() => setShowUploadModal(false)} className="hover:bg-stone-200 p-1 rounded-full"><X size={20} className="text-stone-400" /></button>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-6 bg-stone-100/50">
+                    {uploadInvoice.physicalCopyImage ? (
+                        <div className="flex flex-col items-center">
+                            <img src={uploadInvoice.physicalCopyImage} alt="Invoice Scan" className="max-w-full rounded shadow-lg border border-stone-200 mb-4 max-h-[60vh] object-contain" />
+                            <a href={uploadInvoice.physicalCopyImage} download={`Invoice-${uploadInvoice.number}.png`} className="text-xs font-bold text-primary-600 hover:underline flex items-center gap-1">
+                                <Download size={14} /> Download Image
+                            </a>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed border-stone-300 rounded-xl bg-stone-50">
+                            <FileText size={48} className="text-stone-300 mb-4" />
+                            <p className="text-stone-500 font-medium mb-2">No physical copy attached</p>
+                            <p className="text-xs text-stone-400">Upload a scan or take a photo of the paper invoice.</p>
+                        </div>
+                    )}
+                </div>
+
+                <div className="p-4 border-t border-stone-200 bg-white rounded-b-xl">
+                    <label className="w-full cursor-pointer bg-stone-800 text-white font-bold py-3 rounded-xl hover:bg-stone-900 transition-colors flex items-center justify-center gap-2">
+                        <Camera size={18} />
+                        {uploadInvoice.physicalCopyImage ? 'Replace Image' : 'Upload / Take Photo'}
+                        <input 
+                            type="file" 
+                            accept="image/*" 
+                            capture="environment"
+                            className="hidden" 
+                            onChange={handleFileUpload}
+                        />
+                    </label>
+                </div>
+            </div>
           </div>
       )}
     </div>

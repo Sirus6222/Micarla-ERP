@@ -48,6 +48,8 @@ export const ProductManager: React.FC = () => {
     }
   };
 
+  const formatCurrency = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
       <div className="flex justify-between items-end">
@@ -62,7 +64,9 @@ export const ProductManager: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {products.map(p => {
-          const isLow = p.currentStock <= p.reorderPoint;
+          const currentStock = p.currentStock || 0;
+          const reorderPoint = p.reorderPoint || 0;
+          const isLow = currentStock <= reorderPoint;
           return (
             <div key={p.id} className="bg-white p-6 rounded-xl border border-stone-200 shadow-sm relative group">
                <div className="flex justify-between items-start mb-4">
@@ -72,15 +76,20 @@ export const ProductManager: React.FC = () => {
                   <button className="text-stone-300 hover:text-stone-800"><Pencil size={16}/></button>
                </div>
                <h3 className="font-bold text-stone-800 mb-1">{p.name}</h3>
-               <p className="text-[10px] text-stone-400 font-mono mb-4">{p.sku}</p>
+               <p className="text-[10px] text-stone-400 font-mono mb-2">{p.sku}</p>
+               <div className="text-sm font-medium text-stone-600 mb-4 flex items-center gap-1">
+                 <Tag size={14} className="text-stone-400" />
+                 ETB {formatCurrency(p.pricePerSqm)} / m²
+               </div>
+
                <div className="grid grid-cols-2 gap-4 mb-6">
                   <div>
                     <span className="text-[10px] font-bold text-stone-400 uppercase">Availability</span>
-                    <p className={`text-lg font-bold ${isLow ? 'text-red-600' : 'text-stone-800'}`}>{p.currentStock.toFixed(1)} m²</p>
+                    <p className={`text-lg font-bold ${isLow ? 'text-red-600' : 'text-stone-800'}`}>{currentStock.toFixed(1)} m²</p>
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-stone-400 uppercase">Alert Level</span>
-                    <p className="text-lg font-bold text-stone-800">{p.reorderPoint} m²</p>
+                    <p className="text-lg font-bold text-stone-800">{reorderPoint} m²</p>
                   </div>
                </div>
                

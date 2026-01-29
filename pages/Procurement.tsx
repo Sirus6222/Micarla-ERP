@@ -160,7 +160,7 @@ export const Procurement: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <span className="text-sm font-bold text-green-600">+{rec.quantity.toFixed(1)} m²</span>
+                        <span className="text-sm font-bold text-green-600">+{(rec.quantity || 0).toFixed(1)} m²</span>
                       </td>
                       <td className="px-6 py-4 text-right text-xs text-stone-500">
                         <div className="flex items-center justify-end gap-1">

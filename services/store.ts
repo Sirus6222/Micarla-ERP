@@ -1,6 +1,6 @@
 
 import { supabase } from '../lib/supabase';
-import { Product, Customer, Quote, QuoteStatus, User, Role, Invoice, Payment, InvoiceStatus, InvoiceType, StockRecord, AuditRecord } from '../types';
+import { Product, Customer, Quote, QuoteStatus, User, Role, Invoice, Payment, InvoiceStatus, InvoiceType, StockRecord, AuditRecord, QuoteLineItem } from '../types';
 
 // Hardcoded users for Auth Context (Authentication remains client-side for now)
 const SEED_USERS: User[] = [
@@ -105,17 +105,70 @@ export const CustomerService = {
 };
 
 export const QuoteService = {
-  getAll: async (): Promise<Quote[]> => fetchAll('quotes'),
-  getById: async (id: string): Promise<Quote | undefined> => fetchById('quotes', id),
+  getAll: async (): Promise<Quote[]> => {
+    const { data, error } = await supabase.from('quotes').select('*, items:quote_items(*)');
+    if (error) {
+      console.error(error);
+      return [];
+    }
+    return data as Quote[];
+  },
+  getById: async (id: string): Promise<Quote | undefined> => {
+    const { data, error } = await supabase.from('quotes').select('*, items:quote_items(*)').eq('id', id).single();
+    if (error) return undefined;
+    return data as Quote;
+  },
   getByCustomerId: async (customerId: string): Promise<Quote[]> => {
-    const { data } = await supabase.from('quotes').select('*').eq('customerId', customerId);
-    return data || [];
+    const { data } = await supabase.from('quotes').select('*, items:quote_items(*)').eq('customerId', customerId);
+    return data as Quote[] || [];
   },
   save: async (quote: Quote, user: User): Promise<void> => {
-    const old = await fetchById<Quote>('quotes', quote.id);
-    await upsert('quotes', quote);
-    if (old?.status !== quote.status) {
-      await AuditService.log({ userId: user.id, userName: user.name, action: 'STATUS_CHANGE', entityType: 'Quote', entityId: quote.id, oldValue: old?.status, newValue: quote.status });
+    const oldQuote = await QuoteService.getById(quote.id);
+    
+    // 1. Separate items from quote body
+    const { items, ...quoteHeader } = quote;
+    
+    // 2. Save Header
+    await upsert('quotes', quoteHeader);
+
+    // 3. Save Items (Normalized)
+    // First, remove existing items to handle deletions/updates cleanly
+    await supabase.from('quote_items').delete().eq('quoteId', quote.id);
+    
+    // Then insert current items
+    const itemsToInsert = items.map(item => ({
+      ...item,
+      quoteId: quote.id
+    }));
+    
+    if (itemsToInsert.length > 0) {
+      const { error } = await supabase.from('quote_items').insert(itemsToInsert);
+      if (error) console.error("Error saving quote items:", error);
+    }
+
+    // 4. Auditing
+    if (oldQuote) {
+      // Status Change
+      if (oldQuote.status !== quote.status) {
+        await AuditService.log({ userId: user.id, userName: user.name, action: 'STATUS_CHANGE', entityType: 'Quote', entityId: quote.id, oldValue: oldQuote.status, newValue: quote.status });
+      }
+      
+      // Items Change
+      const oldItemsStr = JSON.stringify(oldQuote.items.map(i => ({ p: i.productId, w: i.width, h: i.height, qty: i.pieces })));
+      const newItemsStr = JSON.stringify(quote.items.map(i => ({ p: i.productId, w: i.width, h: i.height, qty: i.pieces })));
+      
+      if (oldItemsStr !== newItemsStr) {
+        await AuditService.log({ 
+          userId: user.id, 
+          userName: user.name, 
+          action: 'ITEMS_UPDATE', 
+          entityType: 'Quote', 
+          entityId: quote.id, 
+          reason: `Line items updated (${items.length} items)` 
+        });
+      }
+    } else {
+      await AuditService.log({ userId: user.id, userName: user.name, action: 'CREATE', entityType: 'Quote', entityId: quote.id, newValue: quote.number });
     }
   },
   createEmpty: async (user: User): Promise<Quote> => {
@@ -152,6 +205,11 @@ export const FinanceService = {
   createInvoice: async (invoice: Invoice, user: User): Promise<void> => {
     await upsert('invoices', invoice);
     await AuditService.log({ userId: user.id, userName: user.name, action: 'CREATE', entityType: 'Invoice', entityId: invoice.id, newValue: JSON.stringify(invoice) });
+  },
+  attachInvoiceImage: async (invoice: Invoice, imageData: string, user: User): Promise<void> => {
+    invoice.physicalCopyImage = imageData;
+    await upsert('invoices', invoice);
+    await AuditService.log({ userId: user.id, userName: user.name, action: 'UPDATE', entityType: 'Invoice', entityId: invoice.id, reason: 'Physical invoice attached' });
   },
   recordPayment: async (payment: Payment, user: User): Promise<void> => {
     await upsert('payments', payment);
@@ -215,9 +273,8 @@ export const SystemService = {
       { id: 'c5', name: 'Tigist Haile', companyName: '', email: 'tigist.h@gmail.com', phone: '0912341234', address: 'CMC, Addis Ababa', creditLimit: 50000, creditHold: false }
     ];
 
-    // 3. QUOTES
-    const quotes: Quote[] = [
-       // Quote 1: Draft
+    // 3. QUOTES & ITEMS
+    const quotesData: any[] = [
        {
         id: 'q1',
         number: 'Q-1001',
@@ -227,16 +284,15 @@ export const SystemService = {
         salesRepName: 'Alex Sales',
         date: new Date().toISOString().split('T')[0],
         status: QuoteStatus.DRAFT,
-        items: [
-          { id: 'i1', productId: 'p1', productName: 'Galaxy Black Granite', width: 2.4, height: 0.6, pieces: 5, depth: 0.02, wastage: 15, pricePerSqm: 4500, totalSqm: 7.2, totalPriceRaw: 32400, pricePlusWaste: 37260, discountPercent: 0 }
-        ],
         subTotal: 37260,
         tax: 5589,
         grandTotal: 42849,
         approvalHistory: [],
-        stockDeducted: false
+        stockDeducted: false,
+        items: [
+          { id: 'i1', productId: 'p1', productName: 'Galaxy Black Granite', width: 2.4, height: 0.6, pieces: 5, depth: 0.02, wastage: 15, pricePerSqm: 4500, totalSqm: 7.2, totalPriceRaw: 32400, pricePlusWaste: 37260, discountPercent: 0 }
+        ]
       },
-      // Quote 2: In Production
       {
         id: 'q2',
         number: 'Q-1002',
@@ -245,13 +301,9 @@ export const SystemService = {
         customerName: 'Bole Towers',
         salesRepId: 'u1',
         salesRepName: 'Alex Sales',
-        date: new Date(Date.now() - 86400000 * 3).toISOString().split('T')[0], // 3 days ago
+        date: new Date(Date.now() - 86400000 * 3).toISOString().split('T')[0],
         status: QuoteStatus.IN_PRODUCTION,
-        items: [
-          { id: 'i2a', productId: 'p5', productName: 'Ethiopian Gray', width: 1.2, height: 1.2, pieces: 20, depth: 0.02, wastage: 12, pricePerSqm: 2800, totalSqm: 28.8, totalPriceRaw: 80640, pricePlusWaste: 90316.8, discountPercent: 5 },
-          { id: 'i2b', productId: 'p6', productName: 'Rose Pink Granite', width: 2.0, height: 0.3, pieces: 10, depth: 0.02, wastage: 15, pricePerSqm: 3200, totalSqm: 6.0, totalPriceRaw: 19200, pricePlusWaste: 22080, discountPercent: 0 }
-        ],
-        subTotal: 106776.8, // Approx (90316.8 * 0.95) + 22080... simplified
+        subTotal: 106776.8, 
         tax: 16016.5,
         grandTotal: 122793.3,
         approvalHistory: [
@@ -261,9 +313,12 @@ export const SystemService = {
             { id: 'h4', userId: 'u4', userName: 'Tom Factory', userRole: Role.FACTORY, action: 'ACCEPT', timestamp: new Date(Date.now() - 43200000).toISOString() },
             { id: 'h5', userId: 'u4', userName: 'Tom Factory', userRole: Role.FACTORY, action: 'START_WORK', timestamp: new Date().toISOString() }
         ],
-        stockDeducted: false
+        stockDeducted: false,
+        items: [
+          { id: 'i2a', productId: 'p5', productName: 'Ethiopian Gray', width: 1.2, height: 1.2, pieces: 20, depth: 0.02, wastage: 12, pricePerSqm: 2800, totalSqm: 28.8, totalPriceRaw: 80640, pricePlusWaste: 90316.8, discountPercent: 5 },
+          { id: 'i2b', productId: 'p6', productName: 'Rose Pink Granite', width: 2.0, height: 0.3, pieces: 10, depth: 0.02, wastage: 15, pricePerSqm: 3200, totalSqm: 6.0, totalPriceRaw: 19200, pricePlusWaste: 22080, discountPercent: 0 }
+        ]
       },
-      // Quote 3: Completed
       {
         id: 'q3',
         number: 'Q-998',
@@ -274,20 +329,28 @@ export const SystemService = {
         salesRepName: 'Alex Sales',
         date: new Date(Date.now() - 86400000 * 10).toISOString().split('T')[0],
         status: QuoteStatus.COMPLETED,
-        items: [
-           { id: 'i3', productId: 'p3', productName: 'Calacatta Gold Quartz', width: 3.0, height: 0.9, pieces: 1, depth: 0.02, wastage: 10, pricePerSqm: 6800, totalSqm: 2.7, totalPriceRaw: 18360, pricePlusWaste: 20196, discountPercent: 0 }
-        ],
         subTotal: 20196,
         tax: 3029.4,
         grandTotal: 23225.4,
         approvalHistory: [],
-        stockDeducted: true
+        stockDeducted: true,
+        items: [
+           { id: 'i3', productId: 'p3', productName: 'Calacatta Gold Quartz', width: 3.0, height: 0.9, pieces: 1, depth: 0.02, wastage: 10, pricePerSqm: 6800, totalSqm: 2.7, totalPriceRaw: 18360, pricePlusWaste: 20196, discountPercent: 0 }
+        ]
       }
     ];
 
     await supabase.from('products').upsert(products);
     await supabase.from('customers').upsert(customers);
-    await supabase.from('quotes').upsert(quotes);
+    
+    // Save Quotes and Items
+    for (const q of quotesData) {
+        const { items, ...header } = q;
+        await supabase.from('quotes').upsert(header);
+        const itemsWithId = items.map((i: any) => ({...i, quoteId: q.id}));
+        await supabase.from('quote_items').delete().eq('quoteId', q.id);
+        await supabase.from('quote_items').upsert(itemsWithId);
+    }
     
     // 4. STOCK RECORDS (Initial Balance)
     const stockRecords = products.map(p => ({

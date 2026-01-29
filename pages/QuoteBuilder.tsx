@@ -314,6 +314,8 @@ export const QuoteBuilder: React.FC = () => {
     return sum + (rawWithWaste * ((item.discountPercent || 0) / 100));
   }, 0);
 
+  const formatCurrency = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
   return (
     <div className="bg-stone-50 min-h-screen pb-20">
       <style>{`
@@ -510,8 +512,8 @@ export const QuoteBuilder: React.FC = () => {
                       <td className="p-4"><input type="number" step="1" min="0" value={item.pricePerSqm} disabled={!isEditable()} onChange={e => updateLineItem(item.id, 'pricePerSqm', e.target.value)} className="w-full p-2 border border-stone-200 rounded-lg text-center text-xs focus:ring-1 focus:ring-primary-500 outline-none font-mono" /></td>
                       <td className="p-4"><input type="number" min="0" value={item.pieces} disabled={!isEditable()} onChange={e => updateLineItem(item.id, 'pieces', e.target.value)} className="w-full p-2 border border-stone-200 rounded-lg text-center text-xs font-bold focus:ring-1 focus:ring-primary-500 outline-none" /></td>
                       <td className="p-4"><input type="number" min="0" max="100" value={item.discountPercent || 0} disabled={!isEditable()} onChange={e => updateLineItem(item.id, 'discountPercent', e.target.value)} className="w-full p-2 border border-primary-100 rounded-lg text-center text-primary-600 text-xs focus:ring-1 focus:ring-primary-500 outline-none" /></td>
-                      <td className="p-4 text-right bg-stone-50 font-mono text-xs text-stone-700">{item.totalSqm.toFixed(2)}</td>
-                      <td className="p-4 text-right bg-primary-50 border-l font-bold text-primary-800 text-sm">ETB {Number(item.pricePlusWaste).toLocaleString()}</td>
+                      <td className="p-4 text-right bg-stone-50 font-mono text-xs text-stone-700">{(item.totalSqm || 0).toFixed(2)}</td>
+                      <td className="p-4 text-right bg-primary-50 border-l font-bold text-primary-800 text-sm">ETB {formatCurrency(item.pricePlusWaste)}</td>
                       <td className="p-4 text-center no-print">
                         {isEditable() && (
                           <div className="flex gap-1 justify-center md:opacity-0 group-hover:opacity-100 transition-opacity">
@@ -556,13 +558,13 @@ export const QuoteBuilder: React.FC = () => {
               <div className="space-y-3">
                 <div className="flex justify-between text-sm text-stone-600">
                   <span>Subtotal</span>
-                  <span className="font-mono font-medium">ETB {Number(quote.subTotal).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                  <span className="font-mono font-medium">ETB {formatCurrency(quote.subTotal)}</span>
                 </div>
 
                 {totalRowDiscounts > 0 && (
                   <div className="flex justify-between text-xs text-green-600 italic">
                     <span>Includes Item Discounts</span>
-                    <span>- ETB {totalRowDiscounts.toLocaleString()}</span>
+                    <span>- ETB {formatCurrency(totalRowDiscounts)}</span>
                   </div>
                 )}
 
@@ -583,7 +585,7 @@ export const QuoteBuilder: React.FC = () => {
 
                 <div className="flex justify-between text-sm text-stone-600 border-t border-stone-100 pt-3">
                   <span>VAT (15%)</span>
-                  <span className="font-mono font-medium">ETB {Number(quote.tax).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                  <span className="font-mono font-medium">ETB {formatCurrency(quote.tax)}</span>
                 </div>
 
                 <div className="flex justify-between items-end border-t-2 border-stone-100 pt-4 mt-2">
@@ -591,7 +593,7 @@ export const QuoteBuilder: React.FC = () => {
                     <span className="block text-sm font-bold text-stone-900 uppercase tracking-wide">Grand Total</span>
                     <span className="text-xs text-stone-400 font-medium">Inclusive of VAT</span>
                   </div>
-                  <span className="text-3xl font-black text-primary-700 font-mono tracking-tight">ETB {Number(quote.grandTotal).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                  <span className="text-3xl font-black text-primary-700 font-mono tracking-tight">ETB {formatCurrency(quote.grandTotal)}</span>
                 </div>
               </div>
               
@@ -599,13 +601,13 @@ export const QuoteBuilder: React.FC = () => {
                 {totalPaid > 0 && (
                   <div className="flex justify-between text-xs font-bold text-green-700 bg-green-50 p-3 rounded-lg border border-green-100">
                     <span>Total Paid</span>
-                    <span>ETB {totalPaid.toLocaleString()}</span>
+                    <span>ETB {formatCurrency(totalPaid)}</span>
                   </div>
                 )}
                 {quote.grandTotal - totalPaid > 0 && totalPaid > 0 && (
                   <div className="flex justify-between text-xs font-bold text-red-700 bg-red-50 p-3 rounded-lg border border-red-100">
                       <span>Outstanding Balance</span>
-                      <span>ETB {(quote.grandTotal - totalPaid).toLocaleString()}</span>
+                      <span>ETB {formatCurrency(quote.grandTotal - totalPaid)}</span>
                   </div>
                 )}
               </div>
