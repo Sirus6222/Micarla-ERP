@@ -1,0 +1,7 @@
+{
+  "name": "GraniteFlow ERP Pro",
+  "description": "Enterprise-grade granite management with role-based security, i18n support, and financial controls.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
