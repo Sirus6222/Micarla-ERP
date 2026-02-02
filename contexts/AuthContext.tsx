@@ -18,7 +18,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const mountedRef = useRef(true);
-  const fetchingRef = useRef(false);
+  const loadingRef = useRef(true); // Mirror of loading state for use in closures
 
   const parseUser = (id: string, email: string, data: any): User => {
       const safeEmail = email || '';
@@ -30,11 +30,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
   };
 
-  const fetchProfile = useCallback(async (userId: string, email: string): Promise<User | null> => {
-    // Prevent concurrent fetches
-    if (fetchingRef.current) return null;
-    fetchingRef.current = true;
+  const safeSetLoading = useCallback((value: boolean) => {
+    if (mountedRef.current) {
+      loadingRef.current = value;
+      setLoading(value);
+    }
+  }, []);
 
+  const fetchProfile = useCallback(async (userId: string, email: string): Promise<User | null> => {
+    // No fetchingRef guard — let concurrent calls resolve naturally.
+    // The last write to setUser wins, which is the correct behavior.
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -42,10 +47,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('id', userId)
         .single();
 
+      if (error) {
+        console.warn("Profile query error (using fallback):", error.message);
+      }
+
       const appUser = parseUser(userId, email, data);
       if (mountedRef.current) {
         setUser(appUser);
-        setLoading(false);
+        safeSetLoading(false);
       }
       return appUser;
     } catch (err) {
@@ -53,40 +62,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const fallbackUser = parseUser(userId, email, null);
       if (mountedRef.current) {
         setUser(fallbackUser);
-        setLoading(false);
+        safeSetLoading(false);
       }
       return fallbackUser;
-    } finally {
-      fetchingRef.current = false;
     }
-  }, []);
+  }, [safeSetLoading]);
 
   useEffect(() => {
     mountedRef.current = true;
+    loadingRef.current = true;
 
-    // Safety timeout - increased to 15s for slow connections
+    // Safety timeout — uses ref to avoid stale closure
     const timeoutId = setTimeout(() => {
-        if (mountedRef.current && loading) {
+        if (mountedRef.current && loadingRef.current) {
             console.warn("Auth initialization timed out after 15s, forcing completion");
-            setLoading(false);
+            safeSetLoading(false);
         }
     }, 15000);
 
     const initializeAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        if (error) {
+          console.error("getSession failed:", error.message);
+          safeSetLoading(false);
+          return;
+        }
 
         if (session?.user) {
            await fetchProfile(session.user.id, session.user.email || '');
         } else {
            if (mountedRef.current) {
              setUser(null);
-             setLoading(false);
+             safeSetLoading(false);
            }
         }
       } catch (error) {
         console.error("Auth initialization failed:", error);
-        if (mountedRef.current) setLoading(false);
+        safeSetLoading(false);
       }
     };
 
@@ -95,17 +109,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mountedRef.current) return;
 
-      if (session?.user) {
-        // Only fetch profile on meaningful auth events, skip INITIAL_SESSION
-        // since initializeAuth already handles it
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-             await fetchProfile(session.user.id, session.user.email || '');
-        }
-      } else if (event === 'SIGNED_OUT') {
-        if (mountedRef.current) {
+      try {
+        if (session?.user) {
+          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            await fetchProfile(session.user.id, session.user.email || '');
+          }
+        } else if (event === 'SIGNED_OUT') {
           setUser(null);
-          setLoading(false);
+          safeSetLoading(false);
         }
+      } catch (err) {
+        // Critical: never let the listener crash — it would kill all future auth events
+        console.error("onAuthStateChange handler error:", err);
       }
     });
 
@@ -114,7 +129,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
-  }, [fetchProfile]);
+  }, [fetchProfile, safeSetLoading]);
 
   const signIn = async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
