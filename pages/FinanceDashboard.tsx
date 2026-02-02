@@ -84,8 +84,8 @@ export const FinanceDashboard: React.FC = () => {
       dueDate.setDate(dueDate.getDate() + invoiceForm.paymentTerms);
 
       const newInvoice: Invoice = {
-          id: Math.random().toString(36).substr(2, 9),
-          number: `INV-${Math.floor(10000 + Math.random() * 90000)}`,
+          id: crypto.randomUUID(),
+          number: `INV-${Date.now().toString(36).toUpperCase()}`,
           quoteId: selectedOrder.id,
           orderNumber: selectedOrder.orderNumber || '',
           customerId: selectedOrder.customerId,
@@ -118,7 +118,7 @@ export const FinanceDashboard: React.FC = () => {
   const recordPayment = async () => {
       if (!selectedInvoice || !user) return;
       const payment: Payment = {
-          id: Math.random().toString(36).substr(2, 9),
+          id: crypto.randomUUID(),
           invoiceId: selectedInvoice.id,
           quoteId: selectedInvoice.quoteId,
           amount: parseFloat(Number(paymentForm.amount).toFixed(2)),

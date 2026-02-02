@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { User, Role } from '../types';
 
@@ -17,8 +17,9 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const mountedRef = useRef(true);
+  const fetchingRef = useRef(false);
 
-  // Helper to safely parse user data or create fallback
   const parseUser = (id: string, email: string, data: any): User => {
       const safeEmail = email || '';
       return {
@@ -29,77 +30,91 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
   };
 
-  const fetchProfile = async (userId: string, email: string) => {
+  const fetchProfile = useCallback(async (userId: string, email: string): Promise<User | null> => {
+    // Prevent concurrent fetches
+    if (fetchingRef.current) return null;
+    fetchingRef.current = true;
+
     try {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single();
-      
-      // If we have data, use it. If not (error or missing), fallback to default.
-      // This ensures we always return a valid User object if the session exists.
+
       const appUser = parseUser(userId, email, data);
-      setUser(appUser);
+      if (mountedRef.current) {
+        setUser(appUser);
+        setLoading(false);
+      }
       return appUser;
     } catch (err) {
       console.warn("Profile fetch failed, using fallback:", err);
-      // Fallback
       const fallbackUser = parseUser(userId, email, null);
-      setUser(fallbackUser);
+      if (mountedRef.current) {
+        setUser(fallbackUser);
+        setLoading(false);
+      }
       return fallbackUser;
+    } finally {
+      fetchingRef.current = false;
     }
-  };
+  }, []);
 
   useEffect(() => {
-    let mounted = true;
+    mountedRef.current = true;
 
-    // Safety timeout to prevent infinite loading state
+    // Safety timeout - increased to 15s for slow connections
     const timeoutId = setTimeout(() => {
-        if (mounted) setLoading(s => {
-            if (s) console.warn("Auth initialization timed out, forcing completion");
-            return false;
-        });
-    }, 5000);
+        if (mountedRef.current && loading) {
+            console.warn("Auth initialization timed out after 15s, forcing completion");
+            setLoading(false);
+        }
+    }, 15000);
 
     const initializeAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        
+
         if (session?.user) {
            await fetchProfile(session.user.id, session.user.email || '');
         } else {
-           if (mounted) setUser(null);
+           if (mountedRef.current) {
+             setUser(null);
+             setLoading(false);
+           }
         }
       } catch (error) {
         console.error("Auth initialization failed:", error);
-      } finally {
-        if (mounted) setLoading(false);
+        if (mountedRef.current) setLoading(false);
       }
     };
 
     initializeAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mountedRef.current) return;
+
       if (session?.user) {
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+        // Only fetch profile on meaningful auth events, skip INITIAL_SESSION
+        // since initializeAuth already handles it
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
              await fetchProfile(session.user.id, session.user.email || '');
         }
       } else if (event === 'SIGNED_OUT') {
-        if (mounted) {
+        if (mountedRef.current) {
           setUser(null);
-          // Only stop loading if we were loading (though usually handled by init)
-          setLoading(false); 
+          setLoading(false);
         }
       }
     });
 
     return () => {
-      mounted = false;
+      mountedRef.current = false;
       clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
-  }, []);
+  }, [fetchProfile]);
 
   const signIn = async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -121,7 +136,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
     });
-    
+
     if (!error && data.user) {
         await fetchProfile(data.user.id, data.user.email || '');
     }
@@ -133,11 +148,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
   };
 
-  const hasRole = (roles: Role[]) => {
+  const hasRole = useCallback((roles: Role[]) => {
     if (!user) return false;
     if (user.role === Role.ADMIN) return true;
     return roles.includes(user.role);
-  };
+  }, [user]);
 
   return (
     <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut, hasRole }}>

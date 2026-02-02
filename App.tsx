@@ -1,5 +1,6 @@
 import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { QuoteBuilder } from './pages/QuoteBuilder';
@@ -27,6 +28,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
 function App() {
   return (
+    <ErrorBoundary>
     <Router>
       <Routes>
         <Route path="/login" element={<Login />} />
@@ -46,6 +48,7 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
+    </ErrorBoundary>
   );
 }
 

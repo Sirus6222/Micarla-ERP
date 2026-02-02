@@ -28,19 +28,27 @@ export const Dashboard: React.FC = () => {
   // UI State for Interactivity
   const [activeFilter, setActiveFilter] = useState<string>('default');
 
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     const load = async () => {
-      const [q, i, c, p] = await Promise.all([
-        QuoteService.getAll(), 
-        FinanceService.getAllInvoices(), 
-        CustomerService.getAll(),
-        ProductService.getAll()
-      ]);
-      setQuotes(q.reverse()); // Newest first
-      setInvoices(i);
-      setCustomers(c);
-      setProducts(p);
-      setLoading(false);
+      try {
+        const [q, i, c, p] = await Promise.all([
+          QuoteService.getAll(),
+          FinanceService.getAllInvoices(),
+          CustomerService.getAll(),
+          ProductService.getAll()
+        ]);
+        setQuotes(q.reverse());
+        setInvoices(i);
+        setCustomers(c);
+        setProducts(p);
+      } catch (err) {
+        console.error('Dashboard load failed:', err);
+        setError('Failed to load dashboard data. Please check your connection and try again.');
+      } finally {
+        setLoading(false);
+      }
     };
     load();
   }, []);
@@ -54,6 +62,13 @@ export const Dashboard: React.FC = () => {
   };
 
   if (loading || !user) return <div className="p-12 text-center text-stone-400">Loading Workspace...</div>;
+  if (error) return (
+    <div className="p-12 text-center">
+      <div className="text-red-600 font-bold mb-2">Connection Error</div>
+      <p className="text-stone-500 text-sm mb-4">{error}</p>
+      <button onClick={() => window.location.reload()} className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-bold">Retry</button>
+    </div>
+  );
 
   // --- Components ---
 
@@ -76,11 +91,11 @@ export const Dashboard: React.FC = () => {
   }) => {
     const isActive = activeFilter === id;
     return (
-      <button 
+      <button
         onClick={() => setActiveFilter(isActive ? 'default' : id)}
         className={`w-full text-left p-5 rounded-xl border transition-all duration-200 shadow-sm group
-          ${isActive 
-            ? `border-${colorClass.split('-')[1]}-500 ring-1 ring-${colorClass.split('-')[1]}-500 bg-white` 
+          ${isActive
+            ? 'border-primary-500 ring-1 ring-primary-500 bg-white'
             : 'border-stone-200 bg-white hover:border-stone-300 hover:shadow-md'
           }`}
       >

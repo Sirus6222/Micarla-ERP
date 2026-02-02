@@ -139,7 +139,7 @@ export const QuoteBuilder: React.FC = () => {
     setQuote(prev => {
       if (!prev) return null;
       const newLine: QuoteLineItem = {
-        id: Math.random().toString(36).substr(2, 9),
+        id: crypto.randomUUID(),
         productId: '', productName: '', width: 0, height: 0, depth: 0.03, pieces: 1,
         pricePerSqm: 0, wastage: 0, discountPercent: 0, totalSqm: 0, totalPriceRaw: 0, pricePlusWaste: 0
       };
@@ -188,7 +188,7 @@ export const QuoteBuilder: React.FC = () => {
       if (!prev) return null;
       const itemToCopy = prev.items.find(i => i.id === lineId);
       if (!itemToCopy) return prev;
-      const newItem = { ...itemToCopy, id: Math.random().toString(36).substr(2, 9) };
+      const newItem = { ...itemToCopy, id: crypto.randomUUID() };
       return updateTotals({ ...prev, items: [...prev.items, newItem] });
     });
   };
@@ -220,7 +220,7 @@ export const QuoteBuilder: React.FC = () => {
               searchName.includes(p.name.toLowerCase().split(' ')[0])
             );
             newItems.push(calculateLineItem({
-              id: Math.random().toString(36).substr(2, 9),
+              id: crypto.randomUUID(),
               productId: matchedProd?.id || '',
               productName: matchedProd?.name || item.product_name || 'Extracted',
               width: Math.max(0, item.width || 0),
@@ -282,7 +282,7 @@ export const QuoteBuilder: React.FC = () => {
       case 'REJECT': nextStatus = QuoteStatus.REJECTED; break;
       case 'ORDER':
         nextStatus = QuoteStatus.ORDERED;
-        if (!quote.orderNumber) quote.orderNumber = `ORD-${Math.floor(Math.random() * 99999)}`;
+        if (!quote.orderNumber) quote.orderNumber = `ORD-${Date.now().toString(36).toUpperCase()}`;
         break;
       case 'PRODUCTION': nextStatus = QuoteStatus.IN_PRODUCTION; break;
       case 'READY': nextStatus = QuoteStatus.READY; break;
@@ -290,7 +290,7 @@ export const QuoteBuilder: React.FC = () => {
     }
 
     const logEntry: ApprovalLog = {
-      id: Math.random().toString(),
+      id: crypto.randomUUID(),
       userId: user.id,
       userName: user.name,
       userRole: user.role,
