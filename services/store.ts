@@ -242,6 +242,22 @@ export const FinanceService = {
     await upsert('invoices', invoice);
     await AuditService.log({ userId: user.id, userName: user.name, action: 'UPDATE', entityType: 'Invoice', entityId: invoice.id, reason: 'Physical invoice attached' });
   },
+  checkAndMarkOverdue: async (): Promise<void> => {
+    const now = new Date();
+    const { data: openInvoices } = await supabase
+      .from('invoices')
+      .select('*')
+      .in('status', [InvoiceStatus.ISSUED, InvoiceStatus.PARTIALLY_PAID]);
+
+    if (!openInvoices) return;
+
+    for (const inv of openInvoices) {
+      const dueDate = new Date(inv.dueDate);
+      if (now > dueDate) {
+        await supabase.from('invoices').update({ status: InvoiceStatus.OVERDUE }).eq('id', inv.id);
+      }
+    }
+  },
   recordPayment: async (payment: Payment, user: User): Promise<void> => {
     await upsert('payments', payment);
     const invoice = await fetchById<Invoice>('invoices', payment.invoiceId);

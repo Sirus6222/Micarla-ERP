@@ -475,6 +475,41 @@ export const Dashboard: React.FC = () => {
         </button>
       </div>
 
+      {/* ERP Source of Truth Summary - Admin & Manager overview */}
+      {(user.role === Role.ADMIN || user.role === Role.MANAGER) && (
+        <div className="mb-8 bg-gradient-to-r from-stone-900 to-stone-800 rounded-2xl p-6 text-white shadow-lg">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 bg-primary-500 rounded flex items-center justify-center text-stone-900 text-lg font-extrabold">G</div>
+            <div>
+              <h3 className="font-bold text-sm tracking-wide">GraniteFlow ERP — Source of Truth</h3>
+              <p className="text-[10px] text-stone-400 uppercase tracking-widest">Real-time Business Overview</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="bg-white/10 rounded-xl p-3 backdrop-blur-sm">
+              <div className="text-[10px] text-stone-400 uppercase tracking-wider mb-1">Total Quotes</div>
+              <div className="text-xl font-bold">{quotes.length}</div>
+            </div>
+            <div className="bg-white/10 rounded-xl p-3 backdrop-blur-sm">
+              <div className="text-[10px] text-stone-400 uppercase tracking-wider mb-1">Active Orders</div>
+              <div className="text-xl font-bold">{quotes.filter(q => [QuoteStatus.ORDERED, QuoteStatus.ACCEPTED, QuoteStatus.IN_PRODUCTION, QuoteStatus.READY].includes(q.status)).length}</div>
+            </div>
+            <div className="bg-white/10 rounded-xl p-3 backdrop-blur-sm">
+              <div className="text-[10px] text-stone-400 uppercase tracking-wider mb-1">Revenue Collected</div>
+              <div className="text-xl font-bold">ETB {(invoices.reduce((a,b) => a + b.amountPaid, 0) / 1000).toFixed(0)}k</div>
+            </div>
+            <div className="bg-white/10 rounded-xl p-3 backdrop-blur-sm">
+              <div className="text-[10px] text-stone-400 uppercase tracking-wider mb-1">Outstanding</div>
+              <div className="text-xl font-bold text-orange-300">ETB {(invoices.reduce((a,b) => a + b.balanceDue, 0) / 1000).toFixed(0)}k</div>
+            </div>
+            <div className="bg-white/10 rounded-xl p-3 backdrop-blur-sm">
+              <div className="text-[10px] text-stone-400 uppercase tracking-wider mb-1">Low Stock Items</div>
+              <div className="text-xl font-bold text-red-300">{products.filter(p => p.currentStock <= p.reorderPoint).length}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {(user.role === Role.SALES_REP || user.role === Role.ADMIN) && (
         <div className={user.role === Role.ADMIN ? "mb-12 border-b border-stone-200 pb-8" : ""}>
           {user.role === Role.ADMIN && <h3 className="text-sm font-bold text-stone-400 uppercase tracking-widest mb-4">Sales View</h3>}
