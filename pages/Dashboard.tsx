@@ -28,19 +28,27 @@ export const Dashboard: React.FC = () => {
   // UI State for Interactivity
   const [activeFilter, setActiveFilter] = useState<string>('default');
 
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     const load = async () => {
-      const [q, i, c, p] = await Promise.all([
-        QuoteService.getAll(), 
-        FinanceService.getAllInvoices(), 
-        CustomerService.getAll(),
-        ProductService.getAll()
-      ]);
-      setQuotes(q.reverse()); // Newest first
-      setInvoices(i);
-      setCustomers(c);
-      setProducts(p);
-      setLoading(false);
+      try {
+        const [q, i, c, p] = await Promise.all([
+          QuoteService.getAll(),
+          FinanceService.getAllInvoices(),
+          CustomerService.getAll(),
+          ProductService.getAll()
+        ]);
+        setQuotes(q.reverse());
+        setInvoices(i);
+        setCustomers(c);
+        setProducts(p);
+      } catch (err) {
+        console.error('Dashboard load failed:', err);
+        setError('Failed to load dashboard data. Please check your connection and try again.');
+      } finally {
+        setLoading(false);
+      }
     };
     load();
   }, []);
@@ -54,6 +62,13 @@ export const Dashboard: React.FC = () => {
   };
 
   if (loading || !user) return <div className="p-12 text-center text-stone-400">Loading Workspace...</div>;
+  if (error) return (
+    <div className="p-12 text-center">
+      <div className="text-red-600 font-bold mb-2">Connection Error</div>
+      <p className="text-stone-500 text-sm mb-4">{error}</p>
+      <button onClick={() => window.location.reload()} className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-bold">Retry</button>
+    </div>
+  );
 
   // --- Components ---
 
@@ -76,11 +91,11 @@ export const Dashboard: React.FC = () => {
   }) => {
     const isActive = activeFilter === id;
     return (
-      <button 
+      <button
         onClick={() => setActiveFilter(isActive ? 'default' : id)}
         className={`w-full text-left p-5 rounded-xl border transition-all duration-200 shadow-sm group
-          ${isActive 
-            ? `border-${colorClass.split('-')[1]}-500 ring-1 ring-${colorClass.split('-')[1]}-500 bg-white` 
+          ${isActive
+            ? 'border-primary-500 ring-1 ring-primary-500 bg-white'
             : 'border-stone-200 bg-white hover:border-stone-300 hover:shadow-md'
           }`}
       >
@@ -474,6 +489,41 @@ export const Dashboard: React.FC = () => {
           {restoring ? 'Restoring...' : 'Reset Demo'}
         </button>
       </div>
+
+      {/* ERP Source of Truth Summary - Admin & Manager overview */}
+      {(user.role === Role.ADMIN || user.role === Role.MANAGER) && (
+        <div className="mb-8 bg-gradient-to-r from-stone-900 to-stone-800 rounded-2xl p-6 text-white shadow-lg">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 bg-primary-500 rounded flex items-center justify-center text-stone-900 text-lg font-extrabold">G</div>
+            <div>
+              <h3 className="font-bold text-sm tracking-wide">GraniteFlow ERP — Source of Truth</h3>
+              <p className="text-[10px] text-stone-400 uppercase tracking-widest">Real-time Business Overview</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="bg-white/10 rounded-xl p-3 backdrop-blur-sm">
+              <div className="text-[10px] text-stone-400 uppercase tracking-wider mb-1">Total Quotes</div>
+              <div className="text-xl font-bold">{quotes.length}</div>
+            </div>
+            <div className="bg-white/10 rounded-xl p-3 backdrop-blur-sm">
+              <div className="text-[10px] text-stone-400 uppercase tracking-wider mb-1">Active Orders</div>
+              <div className="text-xl font-bold">{quotes.filter(q => [QuoteStatus.ORDERED, QuoteStatus.ACCEPTED, QuoteStatus.IN_PRODUCTION, QuoteStatus.READY].includes(q.status)).length}</div>
+            </div>
+            <div className="bg-white/10 rounded-xl p-3 backdrop-blur-sm">
+              <div className="text-[10px] text-stone-400 uppercase tracking-wider mb-1">Revenue Collected</div>
+              <div className="text-xl font-bold">ETB {(invoices.reduce((a,b) => a + b.amountPaid, 0) / 1000).toFixed(0)}k</div>
+            </div>
+            <div className="bg-white/10 rounded-xl p-3 backdrop-blur-sm">
+              <div className="text-[10px] text-stone-400 uppercase tracking-wider mb-1">Outstanding</div>
+              <div className="text-xl font-bold text-orange-300">ETB {(invoices.reduce((a,b) => a + b.balanceDue, 0) / 1000).toFixed(0)}k</div>
+            </div>
+            <div className="bg-white/10 rounded-xl p-3 backdrop-blur-sm">
+              <div className="text-[10px] text-stone-400 uppercase tracking-wider mb-1">Low Stock Items</div>
+              <div className="text-xl font-bold text-red-300">{products.filter(p => p.currentStock <= p.reorderPoint).length}</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {(user.role === Role.SALES_REP || user.role === Role.ADMIN) && (
         <div className={user.role === Role.ADMIN ? "mb-12 border-b border-stone-200 pb-8" : ""}>

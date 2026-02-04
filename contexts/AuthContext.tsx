@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { User, Role } from '../types';
 
@@ -17,8 +17,9 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const mountedRef = useRef(true);
+  const loadingRef = useRef(true); // Mirror of loading state for use in closures
 
-  // Helper to safely parse user data or create fallback
   const parseUser = (id: string, email: string, data: any): User => {
       const safeEmail = email || '';
       return {
@@ -29,77 +30,106 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
   };
 
-  const fetchProfile = async (userId: string, email: string) => {
+  const safeSetLoading = useCallback((value: boolean) => {
+    if (mountedRef.current) {
+      loadingRef.current = value;
+      setLoading(value);
+    }
+  }, []);
+
+  const fetchProfile = useCallback(async (userId: string, email: string): Promise<User | null> => {
+    // No fetchingRef guard — let concurrent calls resolve naturally.
+    // The last write to setUser wins, which is the correct behavior.
     try {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single();
-      
-      // If we have data, use it. If not (error or missing), fallback to default.
-      // This ensures we always return a valid User object if the session exists.
+
+      if (error) {
+        console.warn("Profile query error (using fallback):", error.message);
+      }
+
       const appUser = parseUser(userId, email, data);
-      setUser(appUser);
+      if (mountedRef.current) {
+        setUser(appUser);
+        safeSetLoading(false);
+      }
       return appUser;
     } catch (err) {
       console.warn("Profile fetch failed, using fallback:", err);
-      // Fallback
       const fallbackUser = parseUser(userId, email, null);
-      setUser(fallbackUser);
+      if (mountedRef.current) {
+        setUser(fallbackUser);
+        safeSetLoading(false);
+      }
       return fallbackUser;
     }
-  };
+  }, [safeSetLoading]);
 
   useEffect(() => {
-    let mounted = true;
+    mountedRef.current = true;
+    loadingRef.current = true;
 
-    // Safety timeout to prevent infinite loading state
+    // Safety timeout — uses ref to avoid stale closure
     const timeoutId = setTimeout(() => {
-        if (mounted) setLoading(s => {
-            if (s) console.warn("Auth initialization timed out, forcing completion");
-            return false;
-        });
-    }, 5000);
+        if (mountedRef.current && loadingRef.current) {
+            console.warn("Auth initialization timed out after 15s, forcing completion");
+            safeSetLoading(false);
+        }
+    }, 15000);
 
     const initializeAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        if (error) {
+          console.error("getSession failed:", error.message);
+          safeSetLoading(false);
+          return;
+        }
+
         if (session?.user) {
            await fetchProfile(session.user.id, session.user.email || '');
         } else {
-           if (mounted) setUser(null);
+           if (mountedRef.current) {
+             setUser(null);
+             safeSetLoading(false);
+           }
         }
       } catch (error) {
         console.error("Auth initialization failed:", error);
-      } finally {
-        if (mounted) setLoading(false);
+        safeSetLoading(false);
       }
     };
 
     initializeAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
-             await fetchProfile(session.user.id, session.user.email || '');
-        }
-      } else if (event === 'SIGNED_OUT') {
-        if (mounted) {
+      if (!mountedRef.current) return;
+
+      try {
+        if (session?.user) {
+          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            await fetchProfile(session.user.id, session.user.email || '');
+          }
+        } else if (event === 'SIGNED_OUT') {
           setUser(null);
-          // Only stop loading if we were loading (though usually handled by init)
-          setLoading(false); 
+          safeSetLoading(false);
         }
+      } catch (err) {
+        // Critical: never let the listener crash — it would kill all future auth events
+        console.error("onAuthStateChange handler error:", err);
       }
     });
 
     return () => {
-      mounted = false;
+      mountedRef.current = false;
       clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
-  }, []);
+  }, [fetchProfile, safeSetLoading]);
 
   const signIn = async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -121,7 +151,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
     });
-    
+
     if (!error && data.user) {
         await fetchProfile(data.user.id, data.user.email || '');
     }
@@ -133,11 +163,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
   };
 
-  const hasRole = (roles: Role[]) => {
+  const hasRole = useCallback((roles: Role[]) => {
     if (!user) return false;
     if (user.role === Role.ADMIN) return true;
     return roles.includes(user.role);
-  };
+  }, [user]);
 
   return (
     <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut, hasRole }}>

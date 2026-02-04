@@ -19,7 +19,7 @@ export const ProductionBoard: React.FC = () => {
             QuoteService.getAll(),
             FinanceService.getAllInvoices()
         ]);
-        setOrders(allQuotes.sort((a, b) => new Date(a.date).getTime() - new Date(a.date).getTime()));
+        setOrders(allQuotes.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
         setInvoices(allInvoices);
     } finally {
         setLoading(false);
@@ -33,7 +33,7 @@ export const ProductionBoard: React.FC = () => {
   const updateStatus = async (quote: Quote, newStatus: QuoteStatus, action: ApprovalLog['action'], comment: string) => {
       if (!user) return;
       const logEntry: ApprovalLog = {
-          id: Math.random().toString(36).substr(2, 9),
+          id: crypto.randomUUID(),
           userId: user.id,
           userName: user.name,
           userRole: user.role,

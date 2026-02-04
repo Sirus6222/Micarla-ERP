@@ -2,7 +2,7 @@
 import { supabase } from '../lib/supabase';
 import { Product, Customer, Quote, QuoteStatus, User, Role, Invoice, Payment, InvoiceStatus, InvoiceType, StockRecord, AuditRecord, QuoteLineItem } from '../types';
 
-const generateId = () => Math.random().toString(36).substr(2, 9);
+const generateId = () => crypto.randomUUID();
 
 // --- Generic Helpers ---
 
@@ -150,47 +150,46 @@ export const QuoteService = {
   },
   save: async (quote: Quote, user: User): Promise<void> => {
     const oldQuote = await QuoteService.getById(quote.id);
-    
-    // 1. Separate items from quote body
+
     const { items, ...quoteHeader } = quote;
-    
-    // 2. Save Header
+
+    // Save Header
     await upsert('quotes', quoteHeader);
 
-    // 3. Save Items (Normalized)
-    // First, remove existing items to handle deletions/updates cleanly
-    await supabase.from('quote_items').delete().eq('quoteId', quote.id);
-    
-    // Then insert current items
-    const itemsToInsert = items.map(item => ({
-      ...item,
-      quoteId: quote.id
-    }));
-    
+    // Save Items - use upsert to atomically update, avoiding delete-then-insert race condition
+    const itemsToInsert = items.map(item => ({ ...item, quoteId: quote.id }));
+
     if (itemsToInsert.length > 0) {
-      const { error } = await supabase.from('quote_items').insert(itemsToInsert);
-      if (error) console.error("Error saving quote items:", error);
+      const { error } = await supabase.from('quote_items').upsert(itemsToInsert);
+      if (error) {
+        console.error("Error saving quote items:", error);
+        throw new Error(`Failed to save quote items: ${error.message}`);
+      }
     }
 
-    // 4. Auditing
+    // Remove items that were deleted by the user (exist in old but not in new)
+    if (oldQuote?.items) {
+      const newItemIds = new Set(items.map(i => i.id));
+      const removedIds = oldQuote.items.map(i => i.id).filter(id => !newItemIds.has(id));
+      if (removedIds.length > 0) {
+        await supabase.from('quote_items').delete().in('id', removedIds);
+      }
+    }
+
+    // Auditing
     if (oldQuote) {
-      // Status Change
       if (oldQuote.status !== quote.status) {
         await AuditService.log({ userId: user.id, userName: user.name, action: 'STATUS_CHANGE', entityType: 'Quote', entityId: quote.id, oldValue: oldQuote.status, newValue: quote.status });
       }
-      
-      // Items Change
+
       const oldItemsStr = JSON.stringify(oldQuote.items.map(i => ({ p: i.productId, w: i.width, h: i.height, qty: i.pieces })));
       const newItemsStr = JSON.stringify(quote.items.map(i => ({ p: i.productId, w: i.width, h: i.height, qty: i.pieces })));
-      
+
       if (oldItemsStr !== newItemsStr) {
-        await AuditService.log({ 
-          userId: user.id, 
-          userName: user.name, 
-          action: 'ITEMS_UPDATE', 
-          entityType: 'Quote', 
-          entityId: quote.id, 
-          reason: `Line items updated (${items.length} items)` 
+        await AuditService.log({
+          userId: user.id, userName: user.name, action: 'ITEMS_UPDATE',
+          entityType: 'Quote', entityId: quote.id,
+          reason: `Line items updated (${items.length} items)`
         });
       }
     } else {
@@ -242,18 +241,33 @@ export const FinanceService = {
     await upsert('invoices', invoice);
     await AuditService.log({ userId: user.id, userName: user.name, action: 'UPDATE', entityType: 'Invoice', entityId: invoice.id, reason: 'Physical invoice attached' });
   },
+  checkAndMarkOverdue: async (): Promise<void> => {
+    const today = new Date().toISOString().split('T')[0];
+    // Single batch update instead of N+1 loop: mark all past-due open invoices as OVERDUE
+    await supabase
+      .from('invoices')
+      .update({ status: InvoiceStatus.OVERDUE })
+      .in('status', [InvoiceStatus.ISSUED, InvoiceStatus.PARTIALLY_PAID])
+      .lt('dueDate', today);
+  },
   recordPayment: async (payment: Payment, user: User): Promise<void> => {
     await upsert('payments', payment);
     const invoice = await fetchById<Invoice>('invoices', payment.invoiceId);
     if (invoice) {
-      const { data: allPayments } = await supabase.from('payments').select('*').eq('invoiceId', payment.invoiceId);
-      const totalPaid = (allPayments || []).reduce((sum, p) => sum + p.amount, 0);
-      
-      invoice.amountPaid = totalPaid;
-      invoice.balanceDue = Math.max(0, invoice.totalAmount - totalPaid);
-      invoice.status = invoice.balanceDue <= 0.01 ? InvoiceStatus.PAID : InvoiceStatus.PARTIALLY_PAID;
-      
-      await upsert('invoices', invoice);
+      // Use SUM query instead of fetching all payment rows
+      const { data: sumResult } = await supabase
+        .from('payments')
+        .select('amount')
+        .eq('invoiceId', payment.invoiceId);
+      const totalPaid = (sumResult || []).reduce((sum: number, p: any) => sum + p.amount, 0);
+
+      const updated = {
+        ...invoice,
+        amountPaid: totalPaid,
+        balanceDue: Math.max(0, invoice.totalAmount - totalPaid),
+        status: (invoice.totalAmount - totalPaid) <= 0.01 ? InvoiceStatus.PAID : InvoiceStatus.PARTIALLY_PAID
+      };
+      await upsert('invoices', updated);
       await AuditService.log({ userId: user.id, userName: user.name, action: 'PAYMENT', entityType: 'Payment', entityId: payment.id, newValue: JSON.stringify(payment) });
     }
   }

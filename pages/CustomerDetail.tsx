@@ -25,14 +25,16 @@ export const CustomerDetail: React.FC = () => {
   const loadData = async () => {
     if (id) {
         try {
-            const cust = await CustomerService.getById(id);
+            // Parallel fetch - eliminates waterfall latency
+            const [cust, customerQuotes, allInvoices] = await Promise.all([
+                CustomerService.getById(id),
+                QuoteService.getByCustomerId(id),
+                FinanceService.getAllInvoices()
+            ]);
             setCustomer(cust);
             setEditForm(cust || {});
             if (cust) {
-                const customerQuotes = await QuoteService.getByCustomerId(id);
-                const allInvoices = await FinanceService.getAllInvoices();
                 const customerInvoices = allInvoices.filter(i => i.customerId === id);
-                
                 setQuotes(customerQuotes.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
                 setInvoices(customerInvoices);
             }

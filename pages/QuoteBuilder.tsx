@@ -6,7 +6,7 @@ import { QuoteService, ProductService, CustomerService, FinanceService, AuditSer
 import { Quote, QuoteLineItem, QuoteStatus, Product, Customer, Role, ApprovalLog, Invoice, AuditRecord } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { GoogleGenAI } from "@google/genai";
+import { supabase } from '../lib/supabase';
 
 export const QuoteBuilder: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -139,7 +139,7 @@ export const QuoteBuilder: React.FC = () => {
     setQuote(prev => {
       if (!prev) return null;
       const newLine: QuoteLineItem = {
-        id: Math.random().toString(36).substr(2, 9),
+        id: crypto.randomUUID(),
         productId: '', productName: '', width: 0, height: 0, depth: 0.03, pieces: 1,
         pricePerSqm: 0, wastage: 0, discountPercent: 0, totalSqm: 0, totalPriceRaw: 0, pricePlusWaste: 0
       };
@@ -188,7 +188,7 @@ export const QuoteBuilder: React.FC = () => {
       if (!prev) return null;
       const itemToCopy = prev.items.find(i => i.id === lineId);
       if (!itemToCopy) return prev;
-      const newItem = { ...itemToCopy, id: Math.random().toString(36).substr(2, 9) };
+      const newItem = { ...itemToCopy, id: crypto.randomUUID() };
       return updateTotals({ ...prev, items: [...prev.items, newItem] });
     });
   };
@@ -202,24 +202,25 @@ export const QuoteBuilder: React.FC = () => {
     reader.onload = async () => {
       const base64Data = (reader.result as string).split(',')[1];
       try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        const response = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
-          contents: [{
-            parts: [
-              { inlineData: { data: base64Data, mimeType: file.type } },
-              { text: `Extract JSON: [{ "product_name": string, "width": number, "height": number, "pieces": number }]` }
-            ]
-          }],
+        // Call the secure Supabase Edge Function instead of exposing API keys client-side
+        const { data, error } = await supabase.functions.invoke('scan-quote', {
+          body: { imageBase64: base64Data, mimeType: file.type }
         });
-        const cleanJson = response.text?.replace(/```json|```/g, '').trim() || "[]";
-        const parsedItems = JSON.parse(cleanJson);
+
+        if (error) throw error;
+
+        const parsedItems = data?.items || [];
         if (Array.isArray(parsedItems)) {
           const newItems = [...quote.items];
           for (const item of parsedItems) {
-            const matchedProd = products.find(p => p.name.toLowerCase().includes(item.product_name?.toLowerCase()));
+            // Fuzzy match product names against inventory database
+            const searchName = (item.product_name || '').toLowerCase();
+            const matchedProd = products.find(p =>
+              p.name.toLowerCase().includes(searchName) ||
+              searchName.includes(p.name.toLowerCase().split(' ')[0])
+            );
             newItems.push(calculateLineItem({
-              id: Math.random().toString(36).substr(2, 9),
+              id: crypto.randomUUID(),
               productId: matchedProd?.id || '',
               productName: matchedProd?.name || item.product_name || 'Extracted',
               width: Math.max(0, item.width || 0),
@@ -236,7 +237,8 @@ export const QuoteBuilder: React.FC = () => {
           setQuote(updateTotals({ ...quote, items: newItems }));
         }
       } catch (err) {
-        console.error(err);
+        console.error('AI Scan failed:', err);
+        alert('AI scan failed. Please ensure the Edge Function is deployed and GEMINI_API_KEY is configured.');
       } finally {
         setScanning(false);
       }
@@ -247,10 +249,14 @@ export const QuoteBuilder: React.FC = () => {
     if (!quote || !user) return;
 
     if (action === 'ORDER' && customer) {
+      if (customer.creditHold) {
+        alert(`CREDIT HOLD: ${customer.companyName || customer.name} is currently on credit hold. Orders cannot be placed until the hold is lifted by a Manager.`);
+        return;
+      }
       const allInvoices = await FinanceService.getAllInvoices();
       const debt = allInvoices.filter(i => i.customerId === customer.id).reduce((a, b) => a + b.balanceDue, 0);
-      if (debt + quote.grandTotal > customer.creditLimit) {
-        alert(`CREDIT LIMIT BREACH: Customer has ETB ${debt.toLocaleString()} debt. This order exceeds limit of ETB ${customer.creditLimit.toLocaleString()}.`);
+      if (customer.creditLimit > 0 && debt + quote.grandTotal > customer.creditLimit) {
+        alert(`CREDIT LIMIT BREACH: Customer has ETB ${debt.toLocaleString()} outstanding debt. Adding this order (ETB ${quote.grandTotal.toLocaleString()}) would exceed the credit limit of ETB ${customer.creditLimit.toLocaleString()}.`);
         return;
       }
     }
@@ -276,7 +282,7 @@ export const QuoteBuilder: React.FC = () => {
       case 'REJECT': nextStatus = QuoteStatus.REJECTED; break;
       case 'ORDER':
         nextStatus = QuoteStatus.ORDERED;
-        if (!quote.orderNumber) quote.orderNumber = `ORD-${Math.floor(Math.random() * 99999)}`;
+        if (!quote.orderNumber) quote.orderNumber = `ORD-${Date.now().toString(36).toUpperCase()}`;
         break;
       case 'PRODUCTION': nextStatus = QuoteStatus.IN_PRODUCTION; break;
       case 'READY': nextStatus = QuoteStatus.READY; break;
@@ -284,7 +290,7 @@ export const QuoteBuilder: React.FC = () => {
     }
 
     const logEntry: ApprovalLog = {
-      id: Math.random().toString(),
+      id: crypto.randomUUID(),
       userId: user.id,
       userName: user.name,
       userRole: user.role,
@@ -547,6 +553,17 @@ export const QuoteBuilder: React.FC = () => {
 
         {/* MAIN ENTRY FORM (FULL WIDTH) */}
         <div className="bg-white border border-stone-200 rounded-xl shadow-lg overflow-hidden print-full-width">
+          {/* Credit Hold Warning Banner */}
+          {customer?.creditHold && (
+            <div className="p-4 bg-red-50 border-b border-red-200 flex items-center gap-3 no-print">
+              <AlertCircle className="text-red-600 shrink-0" size={20} />
+              <div>
+                <span className="font-bold text-red-800 text-sm">CREDIT HOLD ACTIVE</span>
+                <span className="text-red-600 text-xs ml-2">This customer is on credit hold. New orders cannot be created until the hold is removed.</span>
+              </div>
+            </div>
+          )}
+
           {/* HEADER SECTION - Display Only in Print if needed, but we have a custom header */}
           <div className="p-6 bg-stone-50 border-b grid grid-cols-1 md:grid-cols-3 gap-6 no-print">
             <div className="col-span-1 md:col-span-2">

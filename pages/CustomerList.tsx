@@ -23,19 +23,19 @@ export const CustomerList: React.FC = () => {
       ]);
       setCustomers(allCustomers);
 
-      // Calculate financials per customer
+      // Build lookup map in single pass O(n) instead of O(n*m) nested loop
       const financials: Record<string, { totalDebt: number, overdueAmount: number }> = {};
-      
-      allCustomers.forEach(c => {
-          const custInvoices = allInvoices.filter(i => i.customerId === c.id);
-          const totalDebt = custInvoices.reduce((sum, i) => sum + i.balanceDue, 0);
-          
-          const overdueAmount = custInvoices
-            .filter(i => i.status !== InvoiceStatus.PAID && new Date(i.dueDate) < new Date())
-            .reduce((sum, i) => sum + i.balanceDue, 0);
+      const now = new Date();
 
-          financials[c.id] = { totalDebt, overdueAmount };
-      });
+      for (const inv of allInvoices) {
+          if (!financials[inv.customerId]) {
+            financials[inv.customerId] = { totalDebt: 0, overdueAmount: 0 };
+          }
+          financials[inv.customerId].totalDebt += inv.balanceDue;
+          if (inv.status !== InvoiceStatus.PAID && new Date(inv.dueDate) < now) {
+            financials[inv.customerId].overdueAmount += inv.balanceDue;
+          }
+      }
       
       setCustomerFinancials(financials);
       setLoading(false);

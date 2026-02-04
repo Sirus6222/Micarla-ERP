@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { FinanceService, QuoteService } from '../services/store';
 import { Invoice, Quote, QuoteStatus, InvoiceType, InvoiceStatus, Payment, PaymentMethod, Role } from '../types';
-import { Plus, DollarSign, FileText, CheckCircle, Wallet, CreditCard, AlertTriangle, X, Calendar, Clock, Paperclip, Camera, Download, Eye } from 'lucide-react';
+import { Plus, DollarSign, FileText, CheckCircle, Wallet, CreditCard, AlertTriangle, X, Calendar, Clock, Paperclip, Camera, Download, Eye, BarChart3, TrendingDown } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -29,6 +29,9 @@ export const FinanceDashboard: React.FC = () => {
   const [paymentForm, setPaymentForm] = useState({ amount: 0, method: PaymentMethod.BANK_TRANSFER, ref: '' });
 
   const loadData = async () => {
+      // Auto-detect and mark overdue invoices before loading
+      await FinanceService.checkAndMarkOverdue();
+
       const allQuotes = await QuoteService.getAll();
       const orderList = allQuotes.filter(q => q.status === QuoteStatus.ORDERED || q.status === QuoteStatus.IN_PRODUCTION || q.status === QuoteStatus.READY || q.status === QuoteStatus.COMPLETED);
       const allInvoices = await FinanceService.getAllInvoices();
@@ -81,8 +84,8 @@ export const FinanceDashboard: React.FC = () => {
       dueDate.setDate(dueDate.getDate() + invoiceForm.paymentTerms);
 
       const newInvoice: Invoice = {
-          id: Math.random().toString(36).substr(2, 9),
-          number: `INV-${Math.floor(10000 + Math.random() * 90000)}`,
+          id: crypto.randomUUID(),
+          number: `INV-${Date.now().toString(36).toUpperCase()}`,
           quoteId: selectedOrder.id,
           orderNumber: selectedOrder.orderNumber || '',
           customerId: selectedOrder.customerId,
@@ -115,7 +118,7 @@ export const FinanceDashboard: React.FC = () => {
   const recordPayment = async () => {
       if (!selectedInvoice || !user) return;
       const payment: Payment = {
-          id: Math.random().toString(36).substr(2, 9),
+          id: crypto.randomUUID(),
           invoiceId: selectedInvoice.id,
           quoteId: selectedInvoice.quoteId,
           amount: parseFloat(Number(paymentForm.amount).toFixed(2)),
@@ -159,6 +162,69 @@ export const FinanceDashboard: React.FC = () => {
              <div className="text-xs text-stone-500 font-bold uppercase">Total Collections</div>
         </div>
       </div>
+
+      {/* Aging Report Summary */}
+      {(() => {
+        const now = new Date();
+        const agingBuckets = {
+          current: { label: 'Current', invoices: [] as Invoice[], total: 0 },
+          d30: { label: '1-30 Days', invoices: [] as Invoice[], total: 0 },
+          d60: { label: '31-60 Days', invoices: [] as Invoice[], total: 0 },
+          d90: { label: '61-90 Days', invoices: [] as Invoice[], total: 0 },
+          d90plus: { label: '90+ Days', invoices: [] as Invoice[], total: 0 },
+        };
+
+        invoices.filter(i => i.status !== InvoiceStatus.PAID && i.balanceDue > 0).forEach(inv => {
+          const due = new Date(inv.dueDate);
+          const daysOver = Math.ceil((now.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
+          if (daysOver <= 0) { agingBuckets.current.invoices.push(inv); agingBuckets.current.total += inv.balanceDue; }
+          else if (daysOver <= 30) { agingBuckets.d30.invoices.push(inv); agingBuckets.d30.total += inv.balanceDue; }
+          else if (daysOver <= 60) { agingBuckets.d60.invoices.push(inv); agingBuckets.d60.total += inv.balanceDue; }
+          else if (daysOver <= 90) { agingBuckets.d90.invoices.push(inv); agingBuckets.d90.total += inv.balanceDue; }
+          else { agingBuckets.d90plus.invoices.push(inv); agingBuckets.d90plus.total += inv.balanceDue; }
+        });
+
+        const totalOutstanding = Object.values(agingBuckets).reduce((s, b) => s + b.total, 0);
+
+        return (
+          <div className="bg-white rounded-xl shadow-sm border border-stone-200 mb-8 overflow-hidden">
+            <div className="p-4 border-b border-stone-200 bg-stone-50 flex justify-between items-center">
+              <h3 className="font-bold text-stone-700 flex items-center gap-2">
+                <BarChart3 size={18} className="text-primary-600" />
+                Accounts Receivable Aging
+              </h3>
+              <div className="text-xs text-stone-500 font-medium">
+                Total Outstanding: <span className="font-bold text-stone-800">ETB {formatCurrency(totalOutstanding)}</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-5 divide-x divide-stone-100">
+              {Object.values(agingBuckets).map((bucket, idx) => {
+                const pct = totalOutstanding > 0 ? (bucket.total / totalOutstanding) * 100 : 0;
+                const colors = [
+                  'text-green-700 bg-green-50',
+                  'text-yellow-700 bg-yellow-50',
+                  'text-orange-700 bg-orange-50',
+                  'text-red-600 bg-red-50',
+                  'text-red-800 bg-red-100',
+                ];
+                const barColors = ['bg-green-500', 'bg-yellow-500', 'bg-orange-500', 'bg-red-500', 'bg-red-700'];
+                return (
+                  <div key={bucket.label} className="p-4 text-center">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-stone-400 mb-2">{bucket.label}</div>
+                    <div className={`text-lg font-bold ${colors[idx].split(' ')[0]}`}>
+                      ETB {formatCurrency(bucket.total)}
+                    </div>
+                    <div className="text-[10px] text-stone-400 mt-1">{bucket.invoices.length} invoice{bucket.invoices.length !== 1 ? 's' : ''}</div>
+                    <div className="w-full bg-stone-100 rounded-full h-1.5 mt-2">
+                      <div className={`h-1.5 rounded-full ${barColors[idx]} transition-all`} style={{ width: `${Math.max(pct, pct > 0 ? 4 : 0)}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Pending Orders Column */}
