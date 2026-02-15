@@ -40,7 +40,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         <button onClick={() => setLocale('am')} className={`flex-1 py-1 rounded text-[10px] font-bold ${locale === 'am' ? 'bg-primary-600' : 'bg-stone-800 text-stone-500'}`}>አማ</button>
       </div>
 
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className="flex-1 p-4 space-y-1" aria-label="Main navigation">
         {navItems.filter(item => hasRole(item.roles)).map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
@@ -55,7 +55,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
       <div className="p-4 border-t border-stone-800">
         <div className="relative">
-          <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="flex items-center gap-3 px-4 py-3 text-stone-300 hover:text-white w-full transition-colors bg-stone-800 rounded-lg">
+          <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} aria-label="User menu" aria-expanded={isUserMenuOpen} className="flex items-center gap-3 px-4 py-3 text-stone-300 hover:text-white w-full transition-colors bg-stone-800 rounded-lg">
             <div className="w-8 h-8 rounded-full bg-primary-700 flex items-center justify-center text-xs font-bold">{user?.avatarInitials}</div>
             <div className="flex-1 text-left">
               <div className="text-sm font-bold truncate">{user?.name}</div>
@@ -81,7 +81,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       {/* Mobile Header - Hidden on Print */}
       <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-stone-900 text-white flex items-center justify-between px-4 z-40 print:hidden">
          <span className="font-bold">GraniteFlow</span>
-         <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2"><Menu size={24} /></button>
+         <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2" aria-label="Toggle navigation menu" aria-expanded={isMobileMenuOpen}><Menu size={24} /></button>
       </div>
 
       {/* Sidebar - Hidden on Print */}
@@ -90,7 +90,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       </aside>
       
       {/* Main Content */}
-      <main className="flex-1 overflow-auto pt-16 lg:pt-0 print:pt-0 print:overflow-visible">
+      <main className="flex-1 overflow-auto pt-16 lg:pt-0 print:pt-0 print:overflow-visible" role="main">
         {children}
       </main>
     </div>

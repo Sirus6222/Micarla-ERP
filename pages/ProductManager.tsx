@@ -5,6 +5,8 @@ import { Product, Role } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Plus, Pencil, AlertCircle, RefreshCw, Box, Tag, Layers, TrendingDown, X } from 'lucide-react';
+import { formatCurrency } from '../utils/format';
+import { validateProduct } from '../utils/validation';
 
 export const ProductManager: React.FC = () => {
   const { user } = useAuth();
@@ -33,8 +35,9 @@ export const ProductManager: React.FC = () => {
   };
 
   const handleCreate = async () => {
-    if (!user || !newProduct.name || !newProduct.sku) {
-        alert("Name and SKU are required");
+    const errors = validateProduct(newProduct);
+    if (!user || errors.length > 0) {
+        alert(errors.map(e => e.message).join('\n') || 'Validation failed');
         return;
     }
     try {
@@ -47,8 +50,6 @@ export const ProductManager: React.FC = () => {
         alert("Failed to create product");
     }
   };
-
-  const formatCurrency = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">

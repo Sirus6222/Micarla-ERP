@@ -5,6 +5,8 @@ import { CustomerService, FinanceService } from '../services/store';
 import { Customer, Invoice, InvoiceStatus } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { Plus, Search, Users, Phone, MapPin, Building, AlertTriangle, Wallet } from 'lucide-react';
+import { formatCurrency } from '../utils/format';
+import { validateCustomer } from '../utils/validation';
 
 export const CustomerList: React.FC = () => {
   const { user } = useAuth();
@@ -52,15 +54,17 @@ export const CustomerList: React.FC = () => {
   );
 
   const handleSave = async () => {
-      if(!newCust.name || !newCust.phone || !user) return;
+      const errors = validateCustomer(newCust);
+      if(errors.length > 0 || !user) {
+          alert(errors.map(e => e.message).join('\n') || 'Validation failed');
+          return;
+      }
       // Pass user as required by CustomerService.add for audit logging
       await CustomerService.add(newCust as Omit<Customer, 'id'>, user);
       await loadData();
       setShowAdd(false);
       setNewCust({});
   }
-
-  const formatCurrency = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
   return (
     <div className="p-8 max-w-7xl mx-auto">

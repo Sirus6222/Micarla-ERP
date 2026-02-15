@@ -1,6 +1,7 @@
 
 import { supabase } from '../lib/supabase';
 import { Product, Customer, Quote, QuoteStatus, User, Role, Invoice, Payment, InvoiceStatus, InvoiceType, StockRecord, AuditRecord, QuoteLineItem } from '../types';
+import { PRECISION_THRESHOLD } from '../utils/constants';
 
 const generateId = () => crypto.randomUUID();
 
@@ -9,15 +10,17 @@ const generateId = () => crypto.randomUUID();
 const fetchAll = async <T>(table: string): Promise<T[]> => {
   const { data, error } = await supabase.from(table).select('*');
   if (error) {
-    console.error(`Error fetching ${table}:`, error);
-    return [];
+    throw new Error(`Failed to fetch ${table}: ${error.message}`);
   }
   return data as T[];
 };
 
 const fetchById = async <T>(table: string, id: string): Promise<T | undefined> => {
   const { data, error } = await supabase.from(table).select('*').eq('id', id).single();
-  if (error) return undefined;
+  if (error) {
+    if (error.code === 'PGRST116') return undefined; // Not found
+    throw new Error(`Failed to fetch ${table}/${id}: ${error.message}`);
+  }
   return data as T;
 };
 
@@ -133,19 +136,20 @@ export const CustomerService = {
 export const QuoteService = {
   getAll: async (): Promise<Quote[]> => {
     const { data, error } = await supabase.from('quotes').select('*, items:quote_items(*)');
-    if (error) {
-      console.error(error);
-      return [];
-    }
+    if (error) throw new Error(`Failed to fetch quotes: ${error.message}`);
     return data as Quote[];
   },
   getById: async (id: string): Promise<Quote | undefined> => {
     const { data, error } = await supabase.from('quotes').select('*, items:quote_items(*)').eq('id', id).single();
-    if (error) return undefined;
+    if (error) {
+      if (error.code === 'PGRST116') return undefined;
+      throw new Error(`Failed to fetch quote ${id}: ${error.message}`);
+    }
     return data as Quote;
   },
   getByCustomerId: async (customerId: string): Promise<Quote[]> => {
-    const { data } = await supabase.from('quotes').select('*, items:quote_items(*)').eq('customerId', customerId);
+    const { data, error } = await supabase.from('quotes').select('*, items:quote_items(*)').eq('customerId', customerId);
+    if (error) throw new Error(`Failed to fetch quotes for customer: ${error.message}`);
     return data as Quote[] || [];
   },
   save: async (quote: Quote, user: User): Promise<void> => {
@@ -265,7 +269,7 @@ export const FinanceService = {
         ...invoice,
         amountPaid: totalPaid,
         balanceDue: Math.max(0, invoice.totalAmount - totalPaid),
-        status: (invoice.totalAmount - totalPaid) <= 0.01 ? InvoiceStatus.PAID : InvoiceStatus.PARTIALLY_PAID
+        status: Math.max(0, invoice.totalAmount - totalPaid) <= PRECISION_THRESHOLD ? InvoiceStatus.PAID : InvoiceStatus.PARTIALLY_PAID
       };
       await upsert('invoices', updated);
       await AuditService.log({ userId: user.id, userName: user.name, action: 'PAYMENT', entityType: 'Payment', entityId: payment.id, newValue: JSON.stringify(payment) });

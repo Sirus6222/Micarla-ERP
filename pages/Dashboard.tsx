@@ -10,6 +10,8 @@ import { QuoteService, FinanceService, CustomerService, ProductService, SystemSe
 import { Quote, QuoteStatus, Invoice, Role, Customer, Product, InvoiceStatus } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { formatCurrency } from '../utils/format';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -27,6 +29,7 @@ export const Dashboard: React.FC = () => {
 
   // UI State for Interactivity
   const [activeFilter, setActiveFilter] = useState<string>('default');
+  const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
 
@@ -54,11 +57,14 @@ export const Dashboard: React.FC = () => {
   }, []);
 
   const handleRestore = async () => {
-    if(confirm("Restore demo data? This will overwrite existing records with same IDs.")) {
-      setRestoring(true);
-      await SystemService.restoreDemoData();
-      window.location.reload();
-    }
+    setShowRestoreConfirm(true);
+  };
+
+  const confirmRestore = async () => {
+    setShowRestoreConfirm(false);
+    setRestoring(true);
+    await SystemService.restoreDemoData();
+    window.location.reload();
   };
 
   if (loading || !user) return <div className="p-12 text-center text-stone-400">Loading Workspace...</div>;
@@ -113,8 +119,6 @@ export const Dashboard: React.FC = () => {
       </button>
     );
   };
-
-  const formatCurrency = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   // --- Role Specific Logic ---
 
@@ -549,6 +553,16 @@ export const Dashboard: React.FC = () => {
            {renderFactoryView()}
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={showRestoreConfirm}
+        title="Restore Demo Data"
+        message="This will overwrite existing records with the same IDs. Are you sure?"
+        confirmLabel="Restore"
+        variant="danger"
+        onConfirm={confirmRestore}
+        onCancel={() => setShowRestoreConfirm(false)}
+      />
     </div>
   );
 };

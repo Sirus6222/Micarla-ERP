@@ -5,6 +5,7 @@ import { CustomerService, QuoteService, FinanceService } from '../services/store
 import { Customer, Quote, QuoteStatus, Invoice, InvoiceStatus } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { ArrowLeft, Phone, Mail, MapPin, Building, Clock, CheckCircle, DollarSign, Pencil, Save, X, AlertTriangle, Wallet } from 'lucide-react';
+import { formatCurrency } from '../utils/format';
 
 export const CustomerDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -84,8 +85,6 @@ export const CustomerDetail: React.FC = () => {
   const daysOverdue = oldestDue 
     ? Math.floor((new Date().getTime() - new Date(oldestDue).getTime()) / (1000 * 3600 * 24)) 
     : 0;
-
-  const formatCurrency = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
     <div className="p-8 max-w-7xl mx-auto">

@@ -5,6 +5,7 @@ import { FinanceService, QuoteService } from '../services/store';
 import { Invoice, Payment, Quote, InvoiceStatus } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { ArrowLeft, FileText, Calendar, CreditCard, Camera, Download, Paperclip, AlertTriangle, CheckCircle, User, Box } from 'lucide-react';
+import { formatCurrency } from '../utils/format';
 
 export const InvoiceDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -57,7 +58,6 @@ export const InvoiceDetail: React.FC = () => {
   if (!invoice) return <div className="p-8 text-center text-red-500">Invoice not found.</div>;
 
   const isOverdue = invoice.status !== InvoiceStatus.PAID && new Date(invoice.dueDate) < new Date();
-  const formatCurrency = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
     <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-6">

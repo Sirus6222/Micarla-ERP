@@ -7,6 +7,8 @@ import { Quote, QuoteLineItem, QuoteStatus, Product, Customer, Role, ApprovalLog
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { supabase } from '../lib/supabase';
+import { formatCurrency } from '../utils/format';
+import { TAX_RATE } from '../utils/constants';
 
 export const QuoteBuilder: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -104,7 +106,7 @@ export const QuoteBuilder: React.FC = () => {
     const subTotal = currentQuote.items.reduce((sum, item) => sum + item.pricePlusWaste, 0);
     const discountAmount = Math.max(0, Number(currentQuote.discountAmount) || 0);
     const taxableAmount = Math.max(0, subTotal - discountAmount);
-    const tax = taxableAmount * 0.15;
+    const tax = taxableAmount * TAX_RATE;
     const grandTotal = taxableAmount + tax;
 
     return {
@@ -322,8 +324,6 @@ export const QuoteBuilder: React.FC = () => {
     const rawWithWaste = (item.pricePerSqm * item.totalSqm) * (1 + (item.wastage / 100));
     return sum + (rawWithWaste * ((item.discountPercent || 0) / 100));
   }, 0);
-
-  const formatCurrency = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
     <div className="bg-stone-50 min-h-screen pb-20 print:bg-white print:pb-0">

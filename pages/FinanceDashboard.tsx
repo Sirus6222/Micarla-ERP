@@ -5,6 +5,8 @@ import { Invoice, Quote, QuoteStatus, InvoiceType, InvoiceStatus, Payment, Payme
 import { Plus, DollarSign, FileText, CheckCircle, Wallet, CreditCard, AlertTriangle, X, Calendar, Clock, Paperclip, Camera, Download, Eye, BarChart3, TrendingDown } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
+import { formatCurrency } from '../utils/format';
+import { TAX_RATE } from '../utils/constants';
 
 export const FinanceDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -94,8 +96,8 @@ export const FinanceDashboard: React.FC = () => {
           dueDate: dueDate.toISOString().split('T')[0],
           type: invoiceForm.type,
           status: InvoiceStatus.ISSUED,
-          amount: parseFloat((amount / 1.15).toFixed(2)),
-          taxAmount: parseFloat((amount - (amount / 1.15)).toFixed(2)),
+          amount: parseFloat((amount / (1 + TAX_RATE)).toFixed(2)),
+          taxAmount: parseFloat((amount - (amount / (1 + TAX_RATE))).toFixed(2)),
           totalAmount: amount,
           amountPaid: 0,
           balanceDue: amount
@@ -140,8 +142,6 @@ export const FinanceDashboard: React.FC = () => {
       const diffTime = now.getTime() - due.getTime();
       return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
   };
-
-  const formatCurrency = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   if (loading) return <div className="p-12 text-center text-stone-500">Loading Ledger...</div>;
 
