@@ -8,6 +8,18 @@ export default defineConfig(({ mode }) => {
     define: {
       'process.env.API_KEY': JSON.stringify(env.API_KEY),
     },
+    build: {
+      sourcemap: false,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            vendor: ['react', 'react-dom', 'react-router-dom'],
+            supabase: ['@supabase/supabase-js'],
+            icons: ['lucide-react'],
+          },
+        },
+      },
+    },
     test: {
       globals: true,
       environment: 'jsdom',
