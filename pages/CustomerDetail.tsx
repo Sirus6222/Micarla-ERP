@@ -5,6 +5,7 @@ import { CustomerService, QuoteService, FinanceService } from '../services/store
 import { Customer, Quote, QuoteStatus, Invoice, InvoiceStatus } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { ArrowLeft, Phone, Mail, MapPin, Building, Clock, CheckCircle, DollarSign, Pencil, Save, X, AlertTriangle, Wallet } from 'lucide-react';
+import { PageLoader, PageError } from '../components/PageStatus';
 import { formatCurrency } from '../utils/format';
 
 export const CustomerDetail: React.FC = () => {
@@ -14,7 +15,8 @@ export const CustomerDetail: React.FC = () => {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
-  
+  const [error, setError] = useState(false);
+
   // Edit Mode
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Customer>>({});
@@ -41,6 +43,7 @@ export const CustomerDetail: React.FC = () => {
             }
         } catch (e) {
             console.error(e);
+            setError(true);
         } finally {
             setLoading(false);
         }
@@ -56,7 +59,8 @@ export const CustomerDetail: React.FC = () => {
       setIsEditing(false);
   };
 
-  if (loading) return <div className="p-8">Loading...</div>;
+  if (loading) return <PageLoader label="Loading customer..." />;
+  if (error) return <PageError onRetry={loadData} />;
   if (!customer) return <div className="p-8">Customer not found.</div>;
 
   const activeOrders = quotes.filter(q => 

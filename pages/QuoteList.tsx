@@ -4,20 +4,28 @@ import { Link } from 'react-router-dom';
 import { QuoteService } from '../services/store';
 import { Quote } from '../types';
 import { Plus, FileText, RefreshCw } from 'lucide-react';
+import { PageError } from '../components/PageStatus';
 
 export const QuoteList: React.FC = () => {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  const fetchQuotes = async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const all = await QuoteService.getAll();
+      setQuotes(all.reverse()); // Newest first
+    } catch (err) {
+      console.error('QuoteList load failed:', err);
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchQuotes = async () => {
-      try {
-        const all = await QuoteService.getAll();
-        setQuotes(all.reverse()); // Newest first
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchQuotes();
   }, []);
 
@@ -36,6 +44,8 @@ export const QuoteList: React.FC = () => {
             <div className="flex items-center justify-center p-12">
                 <RefreshCw className="animate-spin text-stone-400" size={32} />
             </div>
+        ) : error ? (
+            <PageError onRetry={fetchQuotes} />
         ) : quotes.map(q => (
           <Link key={q.id} to={`/quotes/${q.id}`} className="block group">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-stone-200 hover:border-primary-500 hover:shadow-md transition-all flex items-center justify-between">

@@ -9,6 +9,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../utils/format';
 import { TAX_RATE } from '../utils/constants';
+import { PageLoader } from '../components/PageStatus';
 
 export const QuoteBuilder: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -314,7 +315,7 @@ export const QuoteBuilder: React.FC = () => {
     if (isNew) navigate(`/quotes/${updated.id}`);
   };
 
-  if (loading || !quote) return <div className="p-12 text-center text-stone-400">Loading Quote Builder...</div>;
+  if (loading || !quote) return <PageLoader label="Loading Quote Builder..." />;
 
   const currentIdx = stages.findIndex(s => s.status === quote.status);
   const totalPaid = invoices.reduce((a, b) => a + b.amountPaid, 0);

@@ -1,5 +1,6 @@
 import React, { Suspense } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Loader2, RefreshCw, WifiOff } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Layout } from './components/Layout';
 import { useAuth } from './contexts/AuthContext';
@@ -18,9 +19,10 @@ const Procurement = React.lazy(() => import('./pages/Procurement').then(m => ({ 
 const UserManagement = React.lazy(() => import('./pages/UserManagement').then(m => ({ default: m.UserManagement })));
 const Login = React.lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
 
-const PageLoader = () => (
-  <div className="h-screen flex items-center justify-center bg-stone-50 text-stone-500">
-    <div className="animate-pulse">Loading...</div>
+const AppLoader = () => (
+  <div className="h-screen flex flex-col items-center justify-center gap-3 bg-stone-50">
+    <Loader2 size={28} className="animate-spin text-primary-500" />
+    <span className="text-sm font-medium text-stone-400">Loading...</span>
   </div>
 );
 
@@ -29,21 +31,28 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const { user, loading, authError } = useAuth();
 
   if (authError) return (
-    <div className="h-screen flex flex-col items-center justify-center bg-stone-50 text-stone-500 gap-3">
-      <p className="font-medium text-stone-700">Connection problem</p>
-      <p className="text-sm">Check your internet connection and refresh the page.</p>
+    <div className="h-screen flex flex-col items-center justify-center gap-4 bg-stone-50 p-8">
+      <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center">
+        <WifiOff size={24} className="text-red-400" />
+      </div>
+      <div className="text-center">
+        <p className="font-semibold text-stone-800 mb-1">Connection problem</p>
+        <p className="text-sm text-stone-500">Check your internet connection and try again.</p>
+      </div>
       <button
         onClick={() => window.location.reload()}
-        className="mt-2 px-4 py-2 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700"
+        className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-bold hover:bg-primary-700 transition-colors"
       >
+        <RefreshCw size={14} />
         Refresh
       </button>
     </div>
   );
 
   if (loading) return (
-    <div className="h-screen flex items-center justify-center bg-stone-50 text-stone-500">
-      Initializing...
+    <div className="h-screen flex flex-col items-center justify-center gap-3 bg-stone-50">
+      <Loader2 size={28} className="animate-spin text-primary-500" />
+      <span className="text-sm font-medium text-stone-400">Initializing...</span>
     </div>
   );
 
@@ -56,7 +65,7 @@ function App() {
   return (
     <ErrorBoundary>
     <Router>
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={<AppLoader />}>
         <Routes>
           <Route path="/login" element={<Login />} />
 

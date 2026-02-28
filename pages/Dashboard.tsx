@@ -12,6 +12,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatCurrency } from '../utils/format';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { PageLoader, PageError } from '../components/PageStatus';
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -67,14 +68,8 @@ export const Dashboard: React.FC = () => {
     window.location.reload();
   };
 
-  if (loading || !user) return <div className="p-12 text-center text-stone-400">Loading Workspace...</div>;
-  if (error) return (
-    <div className="p-12 text-center">
-      <div className="text-red-600 font-bold mb-2">Connection Error</div>
-      <p className="text-stone-500 text-sm mb-4">{error}</p>
-      <button onClick={() => window.location.reload()} className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-bold">Retry</button>
-    </div>
-  );
+  if (loading || !user) return <PageLoader label="Loading Workspace..." />;
+  if (error) return <PageError message={error} onRetry={() => window.location.reload()} />;
 
   // --- Components ---
 

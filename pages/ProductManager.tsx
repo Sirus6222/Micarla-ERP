@@ -5,6 +5,7 @@ import { Product, Role } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Plus, Pencil, AlertCircle, RefreshCw, Box, Tag, Layers, TrendingDown, X } from 'lucide-react';
+import { PageLoader, PageError } from '../components/PageStatus';
 import { formatCurrency } from '../utils/format';
 import { validateProduct } from '../utils/validation';
 
@@ -13,7 +14,8 @@ export const ProductManager: React.FC = () => {
   const { t } = useLanguage();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  
+  const [error, setError] = useState(false);
+
   const [adjustingId, setAdjustingId] = useState<string | null>(null);
   const [adjustForm, setAdjustForm] = useState({ change: 0, reason: '' });
 
@@ -23,7 +25,18 @@ export const ProductManager: React.FC = () => {
     name: '', sku: '', pricePerSqm: 0, defaultWastage: 15, thickness: 20, currentStock: 0, reorderPoint: 50, description: ''
   });
 
-  const load = async () => { setProducts(await ProductService.getAll()); setLoading(false); };
+  const load = async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      setProducts(await ProductService.getAll());
+    } catch (err) {
+      console.error('ProductManager load failed:', err);
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
   useEffect(() => { load(); }, []);
 
   const handleAdjust = async () => {
@@ -50,6 +63,9 @@ export const ProductManager: React.FC = () => {
         alert("Failed to create product");
     }
   };
+
+  if (loading) return <PageLoader label="Loading products..." />;
+  if (error) return <PageError onRetry={load} />;
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">

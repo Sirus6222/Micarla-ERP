@@ -3,17 +3,20 @@ import React, { useState, useEffect } from 'react';
 import { QuoteService, FinanceService } from '../services/store';
 import { Quote, QuoteStatus, ApprovalLog, Invoice, Role } from '../types';
 import { Factory, Check, Clock, CheckCircle, ArrowRight, Inbox, RotateCcw, Eye, X, Box, FileText, Lock, FileSearch, CheckSquare } from 'lucide-react';
+import { PageLoader, PageError } from '../components/PageStatus';
 import { useAuth } from '../contexts/AuthContext';
 
 export const ProductionBoard: React.FC = () => {
   const [orders, setOrders] = useState<Quote[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
   const { user } = useAuth();
 
   const refreshOrders = async () => {
     setLoading(true);
+    setError(false);
     try {
         const [allQuotes, allInvoices] = await Promise.all([
             QuoteService.getAll(),
@@ -21,6 +24,9 @@ export const ProductionBoard: React.FC = () => {
         ]);
         setOrders(allQuotes.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
         setInvoices(allInvoices);
+    } catch (err) {
+        console.error('ProductionBoard load failed:', err);
+        setError(true);
     } finally {
         setLoading(false);
     }
@@ -207,7 +213,9 @@ export const ProductionBoard: React.FC = () => {
       </div>
 
       {loading ? (
-          <div className="flex-1 flex items-center justify-center text-stone-500">Loading Board...</div>
+          <PageLoader label="Loading Board..." />
+      ) : error ? (
+          <PageError onRetry={refreshOrders} />
       ) : (
           <div className="flex-1 overflow-x-auto overflow-y-hidden p-4">
               <div className="flex h-full gap-4 min-w-[1500px]">

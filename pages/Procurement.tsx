@@ -4,13 +4,15 @@ import { ProductService, StockService } from '../services/store';
 import { Product, StockRecord } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { PackagePlus, History, Search, Plus, Calendar, User, FileText, TrendingUp } from 'lucide-react';
+import { PageLoader, PageError } from '../components/PageStatus';
 
 export const Procurement: React.FC = () => {
   const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [history, setHistory] = useState<StockRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  
+  const [error, setError] = useState(false);
+
   const [formData, setFormData] = useState({
     productId: '',
     quantity: '',
@@ -19,13 +21,20 @@ export const Procurement: React.FC = () => {
 
   const loadData = async () => {
     setLoading(true);
-    const [prods, hist] = await Promise.all([
-      ProductService.getAll(),
-      StockService.getHistory()
-    ]);
-    setProducts(prods);
-    setHistory(hist.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-    setLoading(false);
+    setError(false);
+    try {
+      const [prods, hist] = await Promise.all([
+        ProductService.getAll(),
+        StockService.getHistory()
+      ]);
+      setProducts(prods);
+      setHistory(hist.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+    } catch (err) {
+      console.error('Procurement load failed:', err);
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -51,6 +60,9 @@ export const Procurement: React.FC = () => {
       alert("Failed to record stock.");
     }
   };
+
+  if (loading) return <PageLoader label="Loading Procurement..." />;
+  if (error) return <PageError onRetry={loadData} />;
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">

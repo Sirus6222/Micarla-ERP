@@ -4,23 +4,27 @@ import { UserService } from '../services/store';
 import { User, Role } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { Shield, Mail, Edit2, Trash2, User as UserIcon, X, Check, AlertCircle } from 'lucide-react';
+import { PageLoader, PageError } from '../components/PageStatus';
 
 export const UserManagement: React.FC = () => {
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<(User & { email?: string })[]>([]);
   const [loading, setLoading] = useState(true);
-  
+  const [error, setError] = useState(false);
+
   // Edit Role Modal
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [newRole, setNewRole] = useState<Role>(Role.SALES_REP);
 
   const loadUsers = async () => {
     setLoading(true);
+    setError(false);
     try {
       const data = await UserService.getAll();
       setUsers(data);
     } catch (err) {
       console.error(err);
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -58,7 +62,8 @@ export const UserManagement: React.FC = () => {
     }
   };
 
-  if (loading) return <div className="p-12 text-center text-stone-500">Loading User Directory...</div>;
+  if (loading) return <PageLoader label="Loading User Directory..." />;
+  if (error) return <PageError onRetry={loadUsers} />;
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">

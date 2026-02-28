@@ -5,6 +5,7 @@ import { CustomerService, FinanceService } from '../services/store';
 import { Customer, Invoice, InvoiceStatus } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { Plus, Search, Users, Phone, MapPin, Building, AlertTriangle, Wallet } from 'lucide-react';
+import { PageLoader, PageError } from '../components/PageStatus';
 import { formatCurrency } from '../utils/format';
 import { validateCustomer } from '../utils/validation';
 
@@ -16,31 +17,38 @@ export const CustomerList: React.FC = () => {
   const [showAdd, setShowAdd] = useState(false);
   const [newCust, setNewCust] = useState<Partial<Customer>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   const loadData = async () => {
       setLoading(true);
-      const [allCustomers, allInvoices] = await Promise.all([
-          CustomerService.getAll(),
-          FinanceService.getAllInvoices()
-      ]);
-      setCustomers(allCustomers);
+      setError(false);
+      try {
+          const [allCustomers, allInvoices] = await Promise.all([
+              CustomerService.getAll(),
+              FinanceService.getAllInvoices()
+          ]);
+          setCustomers(allCustomers);
 
-      // Build lookup map in single pass O(n) instead of O(n*m) nested loop
-      const financials: Record<string, { totalDebt: number, overdueAmount: number }> = {};
-      const now = new Date();
+          // Build lookup map in single pass O(n) instead of O(n*m) nested loop
+          const financials: Record<string, { totalDebt: number, overdueAmount: number }> = {};
+          const now = new Date();
 
-      for (const inv of allInvoices) {
-          if (!financials[inv.customerId]) {
-            financials[inv.customerId] = { totalDebt: 0, overdueAmount: 0 };
+          for (const inv of allInvoices) {
+              if (!financials[inv.customerId]) {
+                financials[inv.customerId] = { totalDebt: 0, overdueAmount: 0 };
+              }
+              financials[inv.customerId].totalDebt += inv.balanceDue;
+              if (inv.status !== InvoiceStatus.PAID && new Date(inv.dueDate) < now) {
+                financials[inv.customerId].overdueAmount += inv.balanceDue;
+              }
           }
-          financials[inv.customerId].totalDebt += inv.balanceDue;
-          if (inv.status !== InvoiceStatus.PAID && new Date(inv.dueDate) < now) {
-            financials[inv.customerId].overdueAmount += inv.balanceDue;
-          }
+          setCustomerFinancials(financials);
+      } catch (err) {
+          console.error('CustomerList load failed:', err);
+          setError(true);
+      } finally {
+          setLoading(false);
       }
-      
-      setCustomerFinancials(financials);
-      setLoading(false);
   }
 
   useEffect(() => {
@@ -112,7 +120,9 @@ export const CustomerList: React.FC = () => {
         </div>
 
         {loading ? (
-             <div className="p-12 text-center text-stone-400">Loading directory...</div>
+             <PageLoader label="Loading directory..." />
+        ) : error ? (
+             <PageError onRetry={loadData} />
         ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6 bg-stone-50/50">
                 {filtered.map(c => {

@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { FinanceService, QuoteService } from '../services/store';
 import { Invoice, Quote, QuoteStatus, InvoiceType, InvoiceStatus, Payment, PaymentMethod, Role } from '../types';
 import { Plus, DollarSign, FileText, CheckCircle, Wallet, CreditCard, AlertTriangle, X, Calendar, Clock, Paperclip, Camera, Download, Eye, BarChart3, TrendingDown } from 'lucide-react';
+import { PageLoader, PageError } from '../components/PageStatus';
 import { useAuth } from '../contexts/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../utils/format';
@@ -15,6 +16,7 @@ export const FinanceDashboard: React.FC = () => {
   const [orders, setOrders] = useState<Quote[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   // Invoice Creation Modal State
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
@@ -31,15 +33,25 @@ export const FinanceDashboard: React.FC = () => {
   const [paymentForm, setPaymentForm] = useState({ amount: 0, method: PaymentMethod.BANK_TRANSFER, ref: '' });
 
   const loadData = async () => {
-      // Auto-detect and mark overdue invoices before loading
-      await FinanceService.checkAndMarkOverdue();
+      setError(false);
+      setLoading(true);
+      try {
+          // Auto-detect and mark overdue invoices before loading
+          await FinanceService.checkAndMarkOverdue();
 
-      const allQuotes = await QuoteService.getAll();
-      const orderList = allQuotes.filter(q => q.status === QuoteStatus.ORDERED || q.status === QuoteStatus.IN_PRODUCTION || q.status === QuoteStatus.READY || q.status === QuoteStatus.COMPLETED);
-      const allInvoices = await FinanceService.getAllInvoices();
-      setOrders(orderList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-      setInvoices(allInvoices.sort((a, b) => new Date(b.dateIssued).getTime() - new Date(a.dateIssued).getTime()));
-      setLoading(false);
+          const [allQuotes, allInvoices] = await Promise.all([
+              QuoteService.getAll(),
+              FinanceService.getAllInvoices(),
+          ]);
+          const orderList = allQuotes.filter(q => q.status === QuoteStatus.ORDERED || q.status === QuoteStatus.IN_PRODUCTION || q.status === QuoteStatus.READY || q.status === QuoteStatus.COMPLETED);
+          setOrders(orderList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+          setInvoices(allInvoices.sort((a, b) => new Date(b.dateIssued).getTime() - new Date(a.dateIssued).getTime()));
+      } catch (err) {
+          console.error('FinanceDashboard load failed:', err);
+          setError(true);
+      } finally {
+          setLoading(false);
+      }
   };
 
   useEffect(() => {
@@ -143,7 +155,8 @@ export const FinanceDashboard: React.FC = () => {
       return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
   };
 
-  if (loading) return <div className="p-12 text-center text-stone-500">Loading Ledger...</div>;
+  if (loading) return <PageLoader label="Loading Ledger..." />;
+  if (error) return <PageError onRetry={loadData} />;
 
   return (
     <div className="p-8 max-w-7xl mx-auto">

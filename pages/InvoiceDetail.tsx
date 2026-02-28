@@ -6,6 +6,7 @@ import { Invoice, Payment, Quote, InvoiceStatus } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { ArrowLeft, FileText, Calendar, CreditCard, Camera, Download, Paperclip, AlertTriangle, CheckCircle, User, Box } from 'lucide-react';
 import { formatCurrency } from '../utils/format';
+import { PageLoader, PageError } from '../components/PageStatus';
 
 export const InvoiceDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -15,6 +16,7 @@ export const InvoiceDetail: React.FC = () => {
   const [quote, setQuote] = useState<Quote | undefined>();
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -22,6 +24,8 @@ export const InvoiceDetail: React.FC = () => {
 
   const loadData = async () => {
     if (id) {
+        setError(false);
+        setLoading(true);
         try {
             const inv = await FinanceService.getInvoiceById(id);
             setInvoice(inv);
@@ -35,6 +39,7 @@ export const InvoiceDetail: React.FC = () => {
             }
         } catch (e) {
             console.error(e);
+            setError(true);
         } finally {
             setLoading(false);
         }
@@ -54,7 +59,8 @@ export const InvoiceDetail: React.FC = () => {
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-stone-500">Loading Invoice Details...</div>;
+  if (loading) return <PageLoader label="Loading Invoice..." />;
+  if (error) return <PageError onRetry={loadData} />;
   if (!invoice) return <div className="p-8 text-center text-red-500">Invoice not found.</div>;
 
   const isOverdue = invoice.status !== InvoiceStatus.PAID && new Date(invoice.dueDate) < new Date();
