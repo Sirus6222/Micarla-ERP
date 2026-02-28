@@ -6,6 +6,7 @@ import { User, Role } from '../types';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  authError: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, name: string, role: Role) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
@@ -17,6 +18,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState(false);
   const mountedRef = useRef(true);
   const loadingRef = useRef(true); // Mirror of loading state for use in closures
 
@@ -75,10 +77,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Safety timeout — uses ref to avoid stale closure
     const timeoutId = setTimeout(() => {
         if (mountedRef.current && loadingRef.current) {
-            console.warn("Auth initialization timed out after 15s, forcing completion");
+            console.warn("Auth initialization timed out after 5s, forcing completion");
+            setAuthError(true);
             safeSetLoading(false);
         }
-    }, 15000);
+    }, 5000);
 
     const initializeAuth = async () => {
       try {
@@ -170,7 +173,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut, hasRole }}>
+    <AuthContext.Provider value={{ user, loading, authError, signIn, signUp, signOut, hasRole }}>
       {children}
     </AuthContext.Provider>
   );

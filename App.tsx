@@ -26,9 +26,27 @@ const PageLoader = () => (
 
 // Wrapper for protected routes
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, loading } = useAuth();
+  const { user, loading, authError } = useAuth();
 
-  if (loading) return <div className="h-screen flex items-center justify-center bg-stone-50 text-stone-500">Initializing...</div>;
+  if (authError) return (
+    <div className="h-screen flex flex-col items-center justify-center bg-stone-50 text-stone-500 gap-3">
+      <p className="font-medium text-stone-700">Connection problem</p>
+      <p className="text-sm">Check your internet connection and refresh the page.</p>
+      <button
+        onClick={() => window.location.reload()}
+        className="mt-2 px-4 py-2 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700"
+      >
+        Refresh
+      </button>
+    </div>
+  );
+
+  if (loading) return (
+    <div className="h-screen flex items-center justify-center bg-stone-50 text-stone-500">
+      Initializing...
+    </div>
+  );
+
   if (!user) return <Navigate to="/login" replace />;
 
   return <Layout>{children}</Layout>;
