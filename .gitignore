@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# E2E test credentials
+.env.test
+
+# Playwright artifacts
+playwright-report/
+test-results/
