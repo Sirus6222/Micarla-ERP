@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { User, Role } from '../types';
 
 interface AuthContextType {
@@ -19,6 +19,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(false);
+  const [configError, setConfigError] = useState(!isSupabaseConfigured);
   const mountedRef = useRef(true);
   const loadingRef = useRef(true); // Mirror of loading state for use in closures
 
@@ -71,6 +72,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [safeSetLoading]);
 
   useEffect(() => {
+    if (!isSupabaseConfigured) {
+      safeSetLoading(false);
+      return;
+    }
+
     mountedRef.current = true;
     loadingRef.current = true;
 
@@ -171,6 +177,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (user.role === Role.ADMIN) return true;
     return roles.includes(user.role);
   }, [user]);
+
+  if (configError) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center p-8">
+        <div className="bg-white rounded-xl shadow-lg border border-stone-200 p-8 max-w-lg w-full text-center">
+          <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="text-amber-500" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+          </div>
+          <h2 className="text-xl font-bold text-stone-900 mb-2">Configuration Required</h2>
+          <p className="text-sm text-stone-600 mb-4">
+            Supabase environment variables are missing. The app cannot connect to the database.
+          </p>
+          <div className="bg-stone-50 rounded-lg p-4 text-left mb-4">
+            <p className="text-xs font-mono text-stone-500 mb-2">Create a <strong>.env.local</strong> file in the project root with:</p>
+            <pre className="text-xs font-mono text-stone-800 whitespace-pre-wrap">
+{`VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key-here`}
+            </pre>
+          </div>
+          <p className="text-xs text-stone-400">
+            Then restart the development server.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <AuthContext.Provider value={{ user, loading, authError, signIn, signUp, signOut, hasRole }}>
