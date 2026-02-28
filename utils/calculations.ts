@@ -34,7 +34,11 @@ export function calcTax(subtotal: number): number {
   return subtotal * TAX_RATE;
 }
 
-/** Grand total: subtotal + tax */
+/**
+ * Grand total: subtotal plus tax.
+ * @param subtotal - the pre-tax subtotal amount
+ * @returns subtotal plus the calculated tax amount
+ */
 export function calcGrandTotal(subtotal: number): number {
   return subtotal + calcTax(subtotal);
 }

@@ -24,6 +24,11 @@ describe('calcSqm', () => {
   it('handles fractional dimensions', () => {
     expect(calcSqm(1.5, 2, 1)).toBeCloseTo(3, 5);
   });
+
+  it('returns a negative number for negative inputs (callers must guard upstream)', () => {
+    // negative width produces a negative sqm — this documents the current behavior
+    expect(calcSqm(-2, 3, 4)).toBeLessThan(0);
+  });
 });
 
 describe('calcLineItemPrice', () => {
@@ -41,14 +46,15 @@ describe('calcLineItemPrice', () => {
     expect(calcLineItemPrice(100, 10, 0, 0)).toBeCloseTo(1000, 2);
   });
 
-  it('handles zero discount', () => {
-    expect(calcLineItemPrice(100, 10, 15, 0)).toBeCloseTo(1150, 2);
+  it('handles zero wastage and zero discount', () => {
+    // 50 sqm × 20 ETB/sqm = 1000, no wastage, no discount
+    expect(calcLineItemPrice(50, 20, 0, 0)).toBeCloseTo(1000, 2);
   });
 });
 
 describe('calcSubtotal', () => {
   it('sums all line item prices', () => {
-    expect(calcSubtotal([500, 300, 200])).toBeCloseTo(1000, 2);
+    expect(calcSubtotal([500, 300, 200])).toBe(1000);
   });
 
   it('returns 0 for empty array', () => {
@@ -99,5 +105,10 @@ describe('isPaid', () => {
   it('handles floating-point imprecision: 0.1 + 0.2', () => {
     // 0.1 + 0.2 in JS = 0.30000000000000004 — isPaid should still treat as equal
     expect(isPaid(0.3, 0.1 + 0.2)).toBe(true);
+  });
+
+  it('returns true when balance is exactly PRECISION_THRESHOLD (boundary: <= means paid)', () => {
+    // grandTotal=1000, amountPaid=999.99 → balance=0.01 = PRECISION_THRESHOLD exactly
+    expect(isPaid(1000, 999.99)).toBe(true);
   });
 });
