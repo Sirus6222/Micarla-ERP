@@ -80,48 +80,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     mountedRef.current = true;
     loadingRef.current = true;
 
-    // Safety timeout — uses ref to avoid stale closure
+    // Safety timeout — token refresh after inactivity on a cold connection can take
+    // several seconds, so 15s gives Supabase enough time to refresh before we give up.
     const timeoutId = setTimeout(() => {
         if (mountedRef.current && loadingRef.current) {
-            console.warn("Auth initialization timed out after 5s, forcing completion");
+            console.warn("Auth initialization timed out after 15s, forcing completion");
             setAuthError(true);
             safeSetLoading(false);
         }
-    }, 5000);
+    }, 15000);
 
-    const initializeAuth = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-
-        if (error) {
-          console.error("getSession failed:", error.message);
-          safeSetLoading(false);
-          return;
-        }
-
-        if (session?.user) {
-           await fetchProfile(session.user.id, session.user.email || '');
-        } else {
-           if (mountedRef.current) {
-             setUser(null);
-             safeSetLoading(false);
-           }
-        }
-      } catch (error) {
-        console.error("Auth initialization failed:", error);
-        safeSetLoading(false);
-      }
-    };
-
-    initializeAuth();
-
+    // Use onAuthStateChange as the single source of truth for the initial session.
+    // In Supabase v2, INITIAL_SESSION fires synchronously from localStorage before
+    // any network call, so loading resolves immediately for returning users.
+    // If the cached token is expired, Supabase auto-refreshes and fires TOKEN_REFRESHED.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mountedRef.current) return;
 
       try {
-        if (session?.user) {
-          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          if (session?.user) {
             await fetchProfile(session.user.id, session.user.email || '');
+          } else {
+            // INITIAL_SESSION with no session means the user is not logged in
+            setUser(null);
+            safeSetLoading(false);
           }
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
