@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileText, Box, Users, Factory, Menu, X, Wallet, ChevronDown, PackagePlus, Languages, LogOut, Shield, Cog } from 'lucide-react';
+import { LayoutDashboard, FileText, Box, Users, Factory, Menu, Wallet, PackagePlus, LogOut, Shield, Cog } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Role } from '../types';
@@ -11,7 +11,6 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { user, signOut, hasRole } = useAuth();
   const { locale, setLocale, t } = useLanguage();
-  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
   const navItems = [
     { path: '/', label: t('dashboard'), icon: LayoutDashboard, roles: [Role.SALES_REP, Role.MANAGER, Role.FINANCE, Role.FACTORY, Role.ADMIN] },
@@ -55,23 +54,15 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       </nav>
 
       <div className="p-4 border-t border-stone-800">
-        <div className="relative">
-          <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} aria-label="User menu" aria-expanded={isUserMenuOpen} className="flex items-center gap-3 px-4 py-3 text-stone-300 hover:text-white w-full transition-colors bg-stone-800 rounded-lg">
-            <div className="w-8 h-8 rounded-full bg-primary-700 flex items-center justify-center text-xs font-bold">{user?.avatarInitials}</div>
-            <div className="flex-1 text-left">
-              <div className="text-sm font-bold truncate">{user?.name}</div>
-              <div className="text-[10px] text-stone-400">{user?.role}</div>
-            </div>
-            <ChevronDown size={14} />
+        <div className="flex items-center gap-3 px-4 py-2 bg-stone-800 rounded-lg">
+          <div className="w-8 h-8 rounded-full bg-primary-700 flex items-center justify-center text-xs font-bold shrink-0">{user?.avatarInitials}</div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-bold text-white truncate">{user?.name}</div>
+            <div className="text-[10px] text-stone-400">{user?.role}</div>
+          </div>
+          <button onClick={signOut} aria-label="Sign out" title="Sign Out" className="p-1.5 text-stone-400 hover:text-red-400 transition-colors shrink-0">
+            <LogOut size={16} />
           </button>
-          {isUserMenuOpen && (
-            <div className="absolute bottom-full left-0 w-full mb-2 bg-white rounded-lg shadow-xl border border-stone-200 text-stone-800 z-50 overflow-hidden">
-               <button onClick={signOut} className="w-full text-left px-4 py-3 hover:bg-red-50 hover:text-red-600 flex items-center gap-2 transition-colors">
-                  <LogOut size={16} />
-                  <span className="text-sm font-bold">Sign Out</span>
-               </button>
-            </div>
-          )}
         </div>
       </div>
     </>

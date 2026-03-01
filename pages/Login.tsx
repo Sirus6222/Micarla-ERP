@@ -67,14 +67,16 @@ export const Login: React.FC = () => {
 
         <div className="p-8">
           <div className="flex gap-4 mb-8 bg-stone-100 p-1 rounded-lg">
-            <button 
+            <button
               onClick={() => { setIsLogin(true); setError(''); }}
+              aria-label="Log in tab"
               className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${isLogin ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
             >
               Sign In
             </button>
-            <button 
+            <button
               onClick={() => { setIsLogin(false); setError(''); }}
+              aria-label="Create account tab"
               className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${!isLogin ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
             >
               Create Account
@@ -107,8 +109,9 @@ export const Login: React.FC = () => {
 
             <div className="relative">
               <Mail className="absolute left-3 top-3 text-stone-400" size={18} />
-              <input 
-                type="email" 
+              <input
+                type="email"
+                aria-label="Email"
                 placeholder="Email Address"
                 className="w-full pl-10 pr-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none transition-all"
                 value={formData.email}
@@ -119,8 +122,9 @@ export const Login: React.FC = () => {
 
             <div className="relative">
               <Lock className="absolute left-3 top-3 text-stone-400" size={18} />
-              <input 
-                type="password" 
+              <input
+                type="password"
+                aria-label="Password"
                 placeholder="Password"
                 className="w-full pl-10 pr-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none transition-all"
                 value={formData.password}
@@ -135,7 +139,7 @@ export const Login: React.FC = () => {
               className="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl shadow-lg shadow-primary-200 transition-all active:scale-95 flex items-center justify-center gap-2"
             >
               {loading && <Loader2 className="animate-spin" size={18} />}
-              {isLogin ? 'Access Dashboard' : 'Register User'}
+              {isLogin ? 'Sign In' : 'Create Account'}
             </button>
           </form>
         </div>

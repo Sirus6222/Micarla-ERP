@@ -44,11 +44,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // No fetchingRef guard — let concurrent calls resolve naturally.
     // The last write to setUser wins, which is the correct behavior.
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
+      // Race the DB query against an 8s timeout so a slow/unreachable Supabase
+      // project doesn't hang the auth init until the 15s safety net fires.
+      const { data, error } = await Promise.race([
+        supabase.from('profiles').select('*').eq('id', userId).single(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Profile fetch timed out')), 8000)
+        ),
+      ]);
 
       if (error) {
         console.warn("Profile query error (using fallback):", error.message);
