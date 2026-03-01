@@ -30,7 +30,7 @@ begin
     new.id, 
     new.email, 
     new.raw_user_meta_data->>'name', 
-    coalesce(new.raw_user_meta_data->>'role', 'Sales Representative'),
+    'Sales Representative',
     coalesce(new.raw_user_meta_data->>'avatarInitials', substring(new.email from 1 for 2))
   );
   return new;

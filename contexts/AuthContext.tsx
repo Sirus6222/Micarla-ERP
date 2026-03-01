@@ -8,7 +8,7 @@ interface AuthContextType {
   loading: boolean;
   authError: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
-  signUp: (email: string, password: string, name: string, role: Role) => Promise<{ error: any }>;
+  signUp: (email: string, password: string, name: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   hasRole: (roles: Role[]) => boolean;
 }
@@ -131,14 +131,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { error };
   };
 
-  const signUp = async (email: string, password: string, name: string, role: Role) => {
+  const signUp = async (email: string, password: string, name: string) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
           name,
-          role,
+          role: Role.SALES_REP,
           avatarInitials: name.substring(0, 2).toUpperCase()
         }
       }

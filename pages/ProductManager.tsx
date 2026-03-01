@@ -22,7 +22,7 @@ export const ProductManager: React.FC = () => {
   // Create Product State
   const [showCreate, setShowCreate] = useState(false);
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
-    name: '', sku: '', pricePerSqm: 0, defaultWastage: 15, thickness: 20, currentStock: 0, reorderPoint: 50, description: ''
+    name: '', sku: '', pricePerSqm: 0, defaultWastage: 15, thickness: 20, currentStock: 0, reservedStock: 0, reorderPoint: 50, description: ''
   });
 
   const load = async () => {
@@ -56,7 +56,7 @@ export const ProductManager: React.FC = () => {
     try {
         await ProductService.add(newProduct as Omit<Product, 'id'>, user);
         setShowCreate(false);
-        setNewProduct({ name: '', sku: '', pricePerSqm: 0, defaultWastage: 15, thickness: 20, currentStock: 0, reorderPoint: 50, description: '' });
+        setNewProduct({ name: '', sku: '', pricePerSqm: 0, defaultWastage: 15, thickness: 20, currentStock: 0, reservedStock: 0, reorderPoint: 50, description: '' });
         load();
     } catch (e) {
         console.error(e);
@@ -82,8 +82,10 @@ export const ProductManager: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {products.map(p => {
           const currentStock = p.currentStock || 0;
+          const reservedStock = p.reservedStock || 0;
+          const availableStock = Math.max(0, currentStock - reservedStock);
           const reorderPoint = p.reorderPoint || 0;
-          const isLow = currentStock <= reorderPoint;
+          const isLow = availableStock <= reorderPoint;
           return (
             <div key={p.id} className="bg-white p-6 rounded-xl border border-stone-200 shadow-sm relative group">
                <div className="flex justify-between items-start mb-4">
@@ -101,8 +103,11 @@ export const ProductManager: React.FC = () => {
 
                <div className="grid grid-cols-2 gap-4 mb-6">
                   <div>
-                    <span className="text-[10px] font-bold text-stone-400 uppercase">Availability</span>
-                    <p className={`text-lg font-bold ${isLow ? 'text-red-600' : 'text-stone-800'}`}>{currentStock.toFixed(1)} m²</p>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase">Available</span>
+                    <p className={`text-lg font-bold ${isLow ? 'text-red-600' : 'text-stone-800'}`}>{availableStock.toFixed(1)} m²</p>
+                    {reservedStock > 0 && (
+                      <p className="text-[10px] text-amber-600 font-medium">{reservedStock.toFixed(1)} m² reserved</p>
+                    )}
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-stone-400 uppercase">Alert Level</span>

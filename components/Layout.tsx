@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileText, Box, Users, Factory, Menu, X, Wallet, ChevronDown, PackagePlus, Languages, LogOut, Shield } from 'lucide-react';
+import { LayoutDashboard, FileText, Box, Users, Factory, Menu, X, Wallet, ChevronDown, PackagePlus, Languages, LogOut, Shield, Cog } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Role } from '../types';
@@ -22,6 +22,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     { path: '/products', label: t('products'), icon: Box, roles: [Role.MANAGER, Role.SALES_REP, Role.FACTORY, Role.ADMIN] },
     { path: '/customers', label: t('customers'), icon: Users, roles: [Role.SALES_REP, Role.MANAGER, Role.FINANCE, Role.ADMIN] },
     { path: '/users', label: 'Users & Roles', icon: Shield, roles: [Role.ADMIN] },
+    { path: '/settings', label: 'Settings', icon: Cog, roles: [Role.ADMIN] },
   ];
 
   const NavContent = () => (

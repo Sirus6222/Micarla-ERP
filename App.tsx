@@ -17,6 +17,7 @@ const FinanceDashboard = React.lazy(() => import('./pages/FinanceDashboard').the
 const InvoiceDetail = React.lazy(() => import('./pages/InvoiceDetail').then(m => ({ default: m.InvoiceDetail })));
 const Procurement = React.lazy(() => import('./pages/Procurement').then(m => ({ default: m.Procurement })));
 const UserManagement = React.lazy(() => import('./pages/UserManagement').then(m => ({ default: m.UserManagement })));
+const Settings = React.lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
 const Login = React.lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
 
 const AppLoader = () => (
@@ -80,6 +81,7 @@ function App() {
           <Route path="/invoices/:id" element={<ProtectedRoute><InvoiceDetail /></ProtectedRoute>} />
           <Route path="/procurement" element={<ProtectedRoute><Procurement /></ProtectedRoute>} />
           <Route path="/users" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

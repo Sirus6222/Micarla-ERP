@@ -55,12 +55,19 @@ export interface AuditRecord {
   userId: string;
   userName: string;
   action: string;
-  entityType: 'Quote' | 'Product' | 'Customer' | 'Invoice' | 'Payment';
+  entityType: 'Quote' | 'Product' | 'Customer' | 'Invoice' | 'Payment' | 'Settings';
   entityId: string;
   oldValue?: string;
   newValue?: string;
   timestamp: string;
   reason?: string;
+}
+
+export interface AppSetting {
+  key: string;
+  value: string;
+  updatedAt?: string;
+  updatedBy?: string;
 }
 
 // StockRecord interface for procurement tracking
@@ -79,7 +86,7 @@ export interface ApprovalLog {
   userId: string;
   userName: string;
   userRole: Role;
-  action: 'SUBMIT' | 'APPROVE' | 'REJECT' | 'RESET' | 'ORDER' | 'ACCEPT' | 'START_WORK' | 'PRODUCTION' | 'READY' | 'COMPLETE';
+  action: 'SUBMIT' | 'APPROVE' | 'REJECT' | 'RESET' | 'ORDER' | 'ACCEPT' | 'START_WORK' | 'PRODUCTION' | 'READY' | 'COMPLETE' | 'CANCEL';
   timestamp: string;
   comment?: string;
 }
@@ -93,6 +100,7 @@ export interface Product {
   thickness: number;
   description?: string;
   currentStock: number;
+  reservedStock: number;
   reorderPoint: number;
 }
 
@@ -144,6 +152,8 @@ export interface Quote {
   depositAmount?: number;
   completionDate?: string;
   stockDeducted?: boolean;
+  stockReserved?: boolean;
+  cancellationReason?: string;
 }
 
 export interface Invoice {

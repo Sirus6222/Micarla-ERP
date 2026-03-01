@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Plus, Trash2, Save, ArrowLeft, CheckCircle, Edit2, X, ChevronRight, RefreshCw, ShieldCheck, FileCheck, Factory, CheckSquare, Lock, Wand2, FileDown, History, AlertCircle, Info, Copy, Tag, User, CreditCard, DollarSign, Wallet } from 'lucide-react';
-import { QuoteService, ProductService, CustomerService, FinanceService, AuditService } from '../services/store';
+import { QuoteService, ProductService, CustomerService, FinanceService, AuditService, SettingsService } from '../services/store';
 import { Quote, QuoteLineItem, QuoteStatus, Product, Customer, Role, ApprovalLog, Invoice, AuditRecord } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -27,6 +27,9 @@ export const QuoteBuilder: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [approvalComment, setApprovalComment] = useState('');
+  const [depositThresholdPct, setDepositThresholdPct] = useState(30);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -57,9 +60,14 @@ export const QuoteBuilder: React.FC = () => {
 
   useEffect(() => {
     const load = async () => {
-      const [ps, cs] = await Promise.all([ProductService.getAll(), CustomerService.getAll()]);
+      const [ps, cs, thresholdStr] = await Promise.all([
+        ProductService.getAll(),
+        CustomerService.getAll(),
+        SettingsService.get('depositThresholdPct')
+      ]);
       setProducts(ps);
       setCustomers(cs);
+      if (thresholdStr !== null) setDepositThresholdPct(parseFloat(thresholdStr));
 
       if (isNew && user) {
         setQuote(await QuoteService.createEmpty(user));
@@ -264,6 +272,39 @@ export const QuoteBuilder: React.FC = () => {
       }
     }
 
+    if (action === 'ACCEPT') {
+      const thresholdPct = depositThresholdPct / 100;
+      const depositPaidAmount = invoices
+        .filter(i => i.type === 'Deposit')
+        .reduce((a, b) => a + b.amountPaid, 0);
+      const requiredDeposit = quote.grandTotal * thresholdPct;
+      if (depositPaidAmount < requiredDeposit) {
+        const pctReceived = ((depositPaidAmount / quote.grandTotal) * 100).toFixed(1);
+        const pctRequired = depositThresholdPct.toFixed(0);
+        alert(
+          `DEPOSIT REQUIRED: ${pctRequired}% deposit needed before factory acceptance.\n` +
+          `Required: ${formatCurrency(requiredDeposit)}\n` +
+          `Received: ${formatCurrency(depositPaidAmount)} (${pctReceived}%)`
+        );
+        return;
+      }
+      if (!quote.stockReserved) {
+        const failures: string[] = [];
+        for (const item of quote.items) {
+          if (!item.productId || item.totalSqm <= 0) continue;
+          const result = await ProductService.reserveStock(item.productId, item.totalSqm, user, quote.orderNumber || quote.number);
+          if (!result.success) {
+            failures.push(`${result.productName}: need ${item.totalSqm.toFixed(2)} m², available ${result.available.toFixed(2)} m²`);
+          }
+        }
+        if (failures.length > 0) {
+          alert(`INSUFFICIENT STOCK — cannot accept order:\n${failures.join('\n')}`);
+          return;
+        }
+        quote.stockReserved = true;
+      }
+    }
+
     if (action === 'COMPLETE') {
       const paid = invoices.reduce((a, b) => a + b.amountPaid, 0);
       if (quote.grandTotal - paid > 1.0) {
@@ -272,7 +313,7 @@ export const QuoteBuilder: React.FC = () => {
       }
       if (!quote.stockDeducted) {
         for (const item of quote.items) {
-          if (item.productId) await ProductService.adjustStock(item.productId, -item.totalSqm, user, `Order Completed: ${quote.orderNumber}`);
+          if (item.productId) await ProductService.convertReservationToDeduction(item.productId, item.totalSqm, user, quote.orderNumber || quote.number);
         }
         quote.stockDeducted = true;
       }
@@ -287,6 +328,7 @@ export const QuoteBuilder: React.FC = () => {
         nextStatus = QuoteStatus.ORDERED;
         if (!quote.orderNumber) quote.orderNumber = `ORD-${Date.now().toString(36).toUpperCase()}`;
         break;
+      case 'ACCEPT': nextStatus = QuoteStatus.ACCEPTED; break;
       case 'PRODUCTION': nextStatus = QuoteStatus.IN_PRODUCTION; break;
       case 'READY': nextStatus = QuoteStatus.READY; break;
       case 'COMPLETE': nextStatus = QuoteStatus.COMPLETED; break;
@@ -306,7 +348,8 @@ export const QuoteBuilder: React.FC = () => {
       ...quote,
       status: nextStatus,
       approvalHistory: [...quote.approvalHistory, logEntry],
-      stockDeducted: quote.stockDeducted
+      stockDeducted: quote.stockDeducted,
+      stockReserved: quote.stockReserved
     };
 
     setQuote(updated);
@@ -315,11 +358,47 @@ export const QuoteBuilder: React.FC = () => {
     if (isNew) navigate(`/quotes/${updated.id}`);
   };
 
+  const handleCancel = async (reason: string) => {
+    if (!quote || !user || reason.trim().length < 5) return;
+    if (quote.status !== QuoteStatus.ORDERED) return;
+    const logEntry: ApprovalLog = {
+      id: crypto.randomUUID(),
+      userId: user.id,
+      userName: user.name,
+      userRole: user.role,
+      action: 'CANCEL',
+      timestamp: new Date().toISOString(),
+      comment: reason
+    };
+    const updated: Quote = {
+      ...quote,
+      status: QuoteStatus.CANCELLED,
+      cancellationReason: reason,
+      approvalHistory: [...quote.approvalHistory, logEntry]
+    };
+    setQuote(updated);
+    setShowCancelModal(false);
+    setCancelReason('');
+    await QuoteService.save(updated, user);
+    await AuditService.log({
+      userId: user.id,
+      userName: user.name,
+      action: 'CANCEL',
+      entityType: 'Quote',
+      entityId: quote.id,
+      oldValue: QuoteStatus.ORDERED,
+      newValue: QuoteStatus.CANCELLED,
+      reason
+    });
+  };
+
   if (loading || !quote) return <PageLoader label="Loading Quote Builder..." />;
 
   const currentIdx = stages.findIndex(s => s.status === quote.status);
   const totalPaid = invoices.reduce((a, b) => a + b.amountPaid, 0);
-  const depositPaid = invoices.filter(i => i.type === 'Deposit').reduce((a, b) => a + b.amountPaid, 0) > 0;
+  const depositPaidAmount = invoices.filter(i => i.type === 'Deposit').reduce((a, b) => a + b.amountPaid, 0);
+  const requiredDepositAmount = quote.grandTotal * (depositThresholdPct / 100);
+  const depositPaid = depositPaidAmount >= requiredDepositAmount;
 
   const totalRowDiscounts = quote.items.reduce((sum, item) => {
     const rawWithWaste = (item.pricePerSqm * item.totalSqm) * (1 + (item.wastage / 100));
@@ -466,6 +545,19 @@ export const QuoteBuilder: React.FC = () => {
             </div>
         </div>
 
+        {/* CANCELLED BANNER */}
+        {quote.status === QuoteStatus.CANCELLED && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3 no-print">
+            <AlertCircle className="text-red-600 shrink-0" size={20} />
+            <div>
+              <span className="font-bold text-red-800 text-sm">ORDER CANCELLED</span>
+              {quote.cancellationReason && (
+                <span className="text-red-600 text-xs ml-2">Reason: {quote.cancellationReason}</span>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* PROGRESS BAR (Hidden in Print) */}
         <div className="bg-white p-6 rounded-xl border border-stone-200 shadow-sm no-print">
           <div className="flex justify-between mb-4">
@@ -535,9 +627,16 @@ export const QuoteBuilder: React.FC = () => {
                   <button onClick={() => handleWorkflow('ORDER')} className="px-8 py-2.5 bg-primary-600 text-white font-bold rounded-lg flex items-center gap-2 hover:bg-primary-700 transition-all shadow-md active:scale-95"><FileCheck size={18}/> Convert to Order</button>
                 )}
                 {quote.status === QuoteStatus.ORDERED && (
-                  <button onClick={() => handleWorkflow('PRODUCTION')} disabled={!depositPaid} className={`px-8 py-2.5 rounded-lg font-bold flex items-center gap-2 transition-all shadow-md active:scale-95 ${depositPaid ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-stone-100 text-stone-300 cursor-not-allowed border border-stone-200'}`}>
-                    {depositPaid ? <><Factory size={18} /> Release to Production</> : <><Lock size={18} /> Deposit Required</>}
-                  </button>
+                  <>
+                    {(user?.role === Role.MANAGER || user?.role === Role.ADMIN) && (
+                      <button onClick={() => setShowCancelModal(true)} className="px-5 py-2.5 border border-red-200 text-red-600 font-bold rounded-lg bg-red-50 hover:bg-red-100 transition-colors shadow-sm">
+                        Cancel Order
+                      </button>
+                    )}
+                    <button onClick={() => handleWorkflow('ACCEPT')} disabled={!depositPaid} className={`px-8 py-2.5 rounded-lg font-bold flex items-center gap-2 transition-all shadow-md active:scale-95 ${depositPaid ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-stone-100 text-stone-300 cursor-not-allowed border border-stone-200'}`}>
+                      {depositPaid ? <><Factory size={18} /> Release to Factory</> : <><Lock size={18} /> Deposit Required ({depositThresholdPct}%)</>}
+                    </button>
+                  </>
                 )}
                 {quote.status === QuoteStatus.READY && (
                   <button onClick={() => handleWorkflow('COMPLETE')} className="px-8 py-2.5 bg-green-600 text-white font-bold rounded-lg flex items-center gap-2 hover:bg-green-700 transition-all shadow-md active:scale-95"><CheckSquare size={18}/> Mark as Complete</button>
@@ -756,6 +855,37 @@ export const QuoteBuilder: React.FC = () => {
         </div>
 
       </div>
+
+      {/* CANCEL ORDER MODAL */}
+      {showCancelModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-md shadow-2xl p-6">
+            <h3 className="font-bold text-stone-800 text-lg mb-2">Cancel Order</h3>
+            <p className="text-sm text-stone-600 mb-4">
+              This will permanently cancel order <strong>{quote.orderNumber || quote.number}</strong>. A mandatory reason is required.
+            </p>
+            <label className="block text-xs font-bold text-stone-500 uppercase mb-2">Cancellation Reason *</label>
+            <textarea
+              value={cancelReason}
+              onChange={e => setCancelReason(e.target.value)}
+              className="w-full h-24 border border-stone-200 p-3 text-sm rounded-lg focus:ring-2 focus:ring-red-400 outline-none mb-6"
+              placeholder="State the reason for cancellation..."
+            />
+            <div className="flex gap-3">
+              <button onClick={() => { setShowCancelModal(false); setCancelReason(''); }} className="flex-1 py-2.5 text-stone-500 font-bold hover:bg-stone-50 rounded-lg border border-stone-200">
+                Keep Order
+              </button>
+              <button
+                onClick={() => handleCancel(cancelReason)}
+                disabled={cancelReason.trim().length < 5}
+                className="flex-1 py-2.5 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 disabled:bg-stone-200 disabled:text-stone-400 transition-colors"
+              >
+                Confirm Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

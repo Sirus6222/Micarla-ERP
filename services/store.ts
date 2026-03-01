@@ -1,6 +1,6 @@
 
 import { supabase } from '../lib/supabase';
-import { Product, Customer, Quote, QuoteStatus, User, Role, Invoice, Payment, InvoiceStatus, InvoiceType, StockRecord, AuditRecord, QuoteLineItem } from '../types';
+import { Product, Customer, Quote, QuoteStatus, User, Role, Invoice, Payment, InvoiceStatus, InvoiceType, StockRecord, AuditRecord, QuoteLineItem, AppSetting } from '../types';
 import { PRECISION_THRESHOLD } from '../utils/constants';
 
 const generateId = () => crypto.randomUUID();
@@ -114,6 +114,35 @@ export const ProductService = {
       await upsert('products', product);
       await AuditService.log({ userId: user.id, userName: user.name, action: 'STOCK_ADJUST', entityType: 'Product', entityId: id, oldValue: String(oldVal), newValue: String(product.currentStock), reason });
     }
+  },
+  reserveStock: async (id: string, sqm: number, user: User, orderNumber: string): Promise<{ success: boolean; available: number; productName: string }> => {
+    const product = await ProductService.getById(id);
+    if (!product) return { success: false, available: 0, productName: 'Unknown' };
+    const reserved = Number(product.reservedStock) || 0;
+    const current = Number(product.currentStock) || 0;
+    const available = current - reserved;
+    if (sqm > available) return { success: false, available, productName: product.name };
+    const updated = { ...product, reservedStock: reserved + sqm };
+    await upsert('products', updated);
+    await AuditService.log({ userId: user.id, userName: user.name, action: 'STOCK_RESERVE', entityType: 'Product', entityId: id, oldValue: String(reserved), newValue: String(updated.reservedStock), reason: `Reserved for ${orderNumber}` });
+    return { success: true, available, productName: product.name };
+  },
+  releaseReservation: async (id: string, sqm: number, user: User, orderNumber: string): Promise<void> => {
+    const product = await ProductService.getById(id);
+    if (!product) return;
+    const newReserved = Math.max(0, (Number(product.reservedStock) || 0) - sqm);
+    const updated = { ...product, reservedStock: newReserved };
+    await upsert('products', updated);
+    await AuditService.log({ userId: user.id, userName: user.name, action: 'STOCK_RELEASE', entityType: 'Product', entityId: id, oldValue: String(product.reservedStock), newValue: String(newReserved), reason: `Reservation released for ${orderNumber}` });
+  },
+  convertReservationToDeduction: async (id: string, sqm: number, user: User, orderNumber: string): Promise<void> => {
+    const product = await ProductService.getById(id);
+    if (!product) return;
+    const oldStock = Number(product.currentStock) || 0;
+    const oldReserved = Number(product.reservedStock) || 0;
+    const updated = { ...product, currentStock: Math.max(0, oldStock - sqm), reservedStock: Math.max(0, oldReserved - sqm) };
+    await upsert('products', updated);
+    await AuditService.log({ userId: user.id, userName: user.name, action: 'STOCK_ADJUST', entityType: 'Product', entityId: id, oldValue: String(oldStock), newValue: String(updated.currentStock), reason: `Order completed, reservation converted: ${orderNumber}` });
   }
 };
 
@@ -304,13 +333,13 @@ export const SystemService = {
     
     // 1. PRODUCTS
     const products: Product[] = [
-      { id: 'p1', name: 'Galaxy Black Granite', sku: 'GR-BLK-001', pricePerSqm: 4500, defaultWastage: 15, thickness: 20, currentStock: 120.5, reorderPoint: 50, description: 'Premium Indian black granite with gold flecks.' },
-      { id: 'p2', name: 'Carrara White Marble', sku: 'MR-WHT-002', pricePerSqm: 5200, defaultWastage: 20, thickness: 20, currentStock: 45.0, reorderPoint: 30, description: 'Classic Italian white marble with soft grey veining.' },
-      { id: 'p3', name: 'Calacatta Gold Quartz', sku: 'QZ-GLD-003', pricePerSqm: 6800, defaultWastage: 10, thickness: 20, currentStock: 200.0, reorderPoint: 40, description: 'Engineered quartz stone with bold gold veining.' },
-      { id: 'p4', name: 'Blue Pearl Granite', sku: 'GR-BLU-004', pricePerSqm: 5800, defaultWastage: 15, thickness: 20, currentStock: 80.0, reorderPoint: 25, description: 'Norwegian granite with shimmering blue crystals.' },
-      { id: 'p5', name: 'Ethiopian Gray', sku: 'GR-ETH-005', pricePerSqm: 2800, defaultWastage: 12, thickness: 20, currentStock: 300.0, reorderPoint: 100, description: 'Locally sourced durable gray granite suitable for flooring.' },
-      { id: 'p6', name: 'Rose Pink Granite', sku: 'GR-PNK-006', pricePerSqm: 3200, defaultWastage: 15, thickness: 20, currentStock: 150.0, reorderPoint: 50, description: 'Vibrant pink granite often used for stairs and skirting.' },
-      { id: 'p7', name: 'Absolute Black', sku: 'GR-ABS-007', pricePerSqm: 4800, defaultWastage: 10, thickness: 30, currentStock: 60.0, reorderPoint: 20, description: 'Pure black granite, excellent for kitchen countertops.' }
+      { id: 'p1', name: 'Galaxy Black Granite', sku: 'GR-BLK-001', pricePerSqm: 4500, defaultWastage: 15, thickness: 20, currentStock: 120.5, reservedStock: 0, reorderPoint: 50, description: 'Premium Indian black granite with gold flecks.' },
+      { id: 'p2', name: 'Carrara White Marble', sku: 'MR-WHT-002', pricePerSqm: 5200, defaultWastage: 20, thickness: 20, currentStock: 45.0, reservedStock: 0, reorderPoint: 30, description: 'Classic Italian white marble with soft grey veining.' },
+      { id: 'p3', name: 'Calacatta Gold Quartz', sku: 'QZ-GLD-003', pricePerSqm: 6800, defaultWastage: 10, thickness: 20, currentStock: 200.0, reservedStock: 0, reorderPoint: 40, description: 'Engineered quartz stone with bold gold veining.' },
+      { id: 'p4', name: 'Blue Pearl Granite', sku: 'GR-BLU-004', pricePerSqm: 5800, defaultWastage: 15, thickness: 20, currentStock: 80.0, reservedStock: 0, reorderPoint: 25, description: 'Norwegian granite with shimmering blue crystals.' },
+      { id: 'p5', name: 'Ethiopian Gray', sku: 'GR-ETH-005', pricePerSqm: 2800, defaultWastage: 12, thickness: 20, currentStock: 300.0, reservedStock: 0, reorderPoint: 100, description: 'Locally sourced durable gray granite suitable for flooring.' },
+      { id: 'p6', name: 'Rose Pink Granite', sku: 'GR-PNK-006', pricePerSqm: 3200, defaultWastage: 15, thickness: 20, currentStock: 150.0, reservedStock: 0, reorderPoint: 50, description: 'Vibrant pink granite often used for stairs and skirting.' },
+      { id: 'p7', name: 'Absolute Black', sku: 'GR-ABS-007', pricePerSqm: 4800, defaultWastage: 10, thickness: 30, currentStock: 60.0, reservedStock: 0, reorderPoint: 20, description: 'Pure black granite, excellent for kitchen countertops.' }
     ];
 
     // 2. CUSTOMERS
@@ -341,5 +370,33 @@ export const SystemService = {
     await supabase.from('stockRecords').upsert(stockRecords);
     
     console.log('Demo data restored successfully.');
+  }
+};
+
+export const SettingsService = {
+  get: async (key: string): Promise<string | null> => {
+    const { data } = await supabase.from('appSettings').select('value').eq('key', key).single();
+    return data?.value ?? null;
+  },
+  getAll: async (): Promise<AppSetting[]> => {
+    const { data } = await supabase.from('appSettings').select('*');
+    return (data as AppSetting[]) || [];
+  },
+  set: async (key: string, value: string, user: User): Promise<void> => {
+    const { error } = await supabase.from('appSettings').upsert({
+      key,
+      value,
+      updatedAt: new Date().toISOString(),
+      updatedBy: user.name
+    });
+    if (error) throw error;
+    await AuditService.log({
+      userId: user.id,
+      userName: user.name,
+      action: 'SETTINGS_UPDATE',
+      entityType: 'Settings',
+      entityId: key,
+      newValue: value
+    });
   }
 };

@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Role } from '../types';
 import { Lock, Mail, User, AlertCircle, Loader2 } from 'lucide-react';
 
 export const Login: React.FC = () => {
@@ -17,8 +16,7 @@ export const Login: React.FC = () => {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    name: '',
-    role: Role.SALES_REP
+    name: ''
   });
 
   useEffect(() => {
@@ -35,7 +33,7 @@ export const Login: React.FC = () => {
       if (isLogin) {
         result = await signIn(formData.email, formData.password);
       } else {
-        result = await signUp(formData.email, formData.password, formData.name, formData.role);
+        result = await signUp(formData.email, formData.password, formData.name);
       }
 
       if (result.error) {
@@ -103,17 +101,6 @@ export const Login: React.FC = () => {
                     onChange={e => setFormData({...formData, name: e.target.value})}
                     required
                   />
-                </div>
-                <div className="relative">
-                   <select 
-                      className="w-full pl-3 pr-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none transition-all bg-white"
-                      value={formData.role}
-                      onChange={e => setFormData({...formData, role: e.target.value as Role})}
-                   >
-                     {Object.values(Role).map(role => (
-                       <option key={role} value={role}>{role}</option>
-                     ))}
-                   </select>
                 </div>
               </>
             )}

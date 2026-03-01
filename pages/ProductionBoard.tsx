@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { QuoteService, FinanceService } from '../services/store';
-import { Quote, QuoteStatus, ApprovalLog, Invoice, Role } from '../types';
+import { QuoteService, FinanceService, SettingsService, ProductService } from '../services/store';
+import { Quote, QuoteStatus, ApprovalLog, Invoice, InvoiceType, Role } from '../types';
 import { Factory, Check, Clock, CheckCircle, ArrowRight, Inbox, RotateCcw, Eye, X, Box, FileText, Lock, FileSearch, CheckSquare } from 'lucide-react';
 import { PageLoader, PageError } from '../components/PageStatus';
 import { useAuth } from '../contexts/AuthContext';
@@ -12,18 +12,21 @@ export const ProductionBoard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
+  const [depositThresholdPct, setDepositThresholdPct] = useState(30);
   const { user } = useAuth();
 
   const refreshOrders = async () => {
     setLoading(true);
     setError(false);
     try {
-        const [allQuotes, allInvoices] = await Promise.all([
+        const [allQuotes, allInvoices, thresholdStr] = await Promise.all([
             QuoteService.getAll(),
-            FinanceService.getAllInvoices()
+            FinanceService.getAllInvoices(),
+            SettingsService.get('depositThresholdPct')
         ]);
         setOrders(allQuotes.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
         setInvoices(allInvoices);
+        if (thresholdStr !== null) setDepositThresholdPct(parseFloat(thresholdStr));
     } catch (err) {
         console.error('ProductionBoard load failed:', err);
         setError(true);
@@ -71,9 +74,13 @@ export const ProductionBoard: React.FC = () => {
   };
 
   const hasDeposit = (quoteId: string) => {
-      const quoteInvoices = invoices.filter(i => i.quoteId === quoteId);
-      const totalPaid = quoteInvoices.reduce((sum, i) => sum + i.amountPaid, 0);
-      return totalPaid > 0;
+      const quote = orders.find(q => q.id === quoteId);
+      if (!quote) return false;
+      const depositPaid = invoices
+          .filter(i => i.quoteId === quoteId && i.type === InvoiceType.DEPOSIT)
+          .reduce((sum, i) => sum + i.amountPaid, 0);
+      const required = quote.grandTotal * (depositThresholdPct / 100);
+      return depositPaid >= required;
   };
 
   const isFullyPaid = (quoteId: string) => {
@@ -161,7 +168,19 @@ export const ProductionBoard: React.FC = () => {
           <div className="pt-2 border-t border-stone-100 flex gap-2">
               {quote.status === QuoteStatus.ORDERED && (
                   depositPaid ? (
-                    <button onClick={() => updateStatus(quote, QuoteStatus.ACCEPTED, 'ACCEPT', 'Job accepted')} disabled={!isFactoryUser} className={`w-full py-1 text-white rounded text-[10px] font-bold flex items-center justify-center gap-1 ${isFactoryUser ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-300 cursor-not-allowed'}`}>
+                    <button onClick={async () => {
+                        if (!user) return;
+                        if (!quote.stockReserved) {
+                            const failures: string[] = [];
+                            for (const item of quote.items) {
+                                if (!item.productId || item.totalSqm <= 0) continue;
+                                const result = await ProductService.reserveStock(item.productId, item.totalSqm, user, quote.orderNumber || quote.number);
+                                if (!result.success) failures.push(`${result.productName}: need ${item.totalSqm.toFixed(2)} m², available ${result.available.toFixed(2)} m²`);
+                            }
+                            if (failures.length > 0) { alert(`INSUFFICIENT STOCK:\n${failures.join('\n')}`); return; }
+                        }
+                        await updateStatus({ ...quote, stockReserved: true }, QuoteStatus.ACCEPTED, 'ACCEPT', 'Job accepted');
+                    }} disabled={!isFactoryUser} className={`w-full py-1 text-white rounded text-[10px] font-bold flex items-center justify-center gap-1 ${isFactoryUser ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-300 cursor-not-allowed'}`}>
                         {isFactoryUser ? 'Accept' : 'Factory'} <ArrowRight size={10} />
                     </button>
                   ) : (
